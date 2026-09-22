@@ -71,8 +71,30 @@ av_phrase_background_done() { # <agent_name> <where> <text>
   return 0
 }
 
+# The agent's notification text arrives in English. Speaking it verbatim after a
+# Portuguese sentence says the same thing twice, in two languages, so the notices
+# we recognise are translated — and the one that merely restates the sentence is
+# dropped. An unrecognised notice is still spoken: losing it would be worse.
+av_translate_notice() { # av_translate_notice <text> -> clause to append, or empty
+  case "$1" in
+    *"needs your permission to use "*)
+      printf ', para usar o %s' "${1##*needs your permission to use }" ;;
+    *"needs your permission"*)
+      : ;;                                  # "precisa de você" already said it
+    *"waiting for your input"*)
+      printf ', e está esperando sua resposta' ;;
+    *)
+      printf '. %s' "$1" ;;
+  esac
+  return 0
+}
+
 av_phrase_needs_input() { # <agent_name> <where> <text>
-  printf '%s precisa de você %s.' "$1" "$2"
-  [ -n "$3" ] && printf ' %s.' "$(printf '%s' "$3" | av_strip_trailing_punct)"
+  printf '%s precisa de você %s' "$1" "$2"
+  if [ -n "$3" ]; then
+    printf '%s.' "$(av_translate_notice "$(printf '%s' "$3" | av_strip_trailing_punct)")"
+  else
+    printf '.'
+  fi
   return 0
 }

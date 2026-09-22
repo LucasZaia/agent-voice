@@ -193,6 +193,24 @@ check "phrases: background done" \
   "Claude Code terminou um trabalho em segundo plano na sessão X. Era: revisor." \
   "$(av_phrase_background_done "Claude Code" "na sessão X" "revisor")"
 
+# The Claude Code notification message arrives in English. Speaking it verbatim
+# after a Portuguese sentence says the same thing twice, in two languages.
+check "phrases: bare permission notice adds nothing" \
+  "Claude Code precisa de você na sessão X." \
+  "$(av_phrase_needs_input "Claude Code" "na sessão X" "Claude needs your permission")"
+
+check "phrases: permission notice names the tool in Portuguese" \
+  "Claude Code precisa de você na sessão X, para usar o Bash." \
+  "$(av_phrase_needs_input "Claude Code" "na sessão X" "Claude needs your permission to use Bash")"
+
+check "phrases: waiting notice is translated" \
+  "Claude Code precisa de você na sessão X, e está esperando sua resposta." \
+  "$(av_phrase_needs_input "Claude Code" "na sessão X" "Claude is waiting for your input")"
+
+check "phrases: unknown notice is kept" \
+  "Claude Code precisa de você na sessão X. algo inesperado." \
+  "$(av_phrase_needs_input "Claude Code" "na sessão X" "algo inesperado")"
+
 check "phrases: needs input" \
   "Claude Code precisa de você na sessão X. permission needed." \
   "$(av_phrase_needs_input "Claude Code" "na sessão X" "permission needed")"
