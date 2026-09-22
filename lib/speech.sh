@@ -12,7 +12,8 @@ av_strip_emoji() {
 }
 
 av_clean_speech() { # stdin -> stdout
-  tr '\n' ' ' \
+  local text
+  text=$(tr '\n' ' ' \
     | sed -E 's/\[([^]]*)\]\([^)]*\)/\1/g
               s#https?://[^ ]*##g
               s/\[#?[0-9]+\][[:space:]]*//g
@@ -20,8 +21,9 @@ av_clean_speech() { # stdin -> stdout
               s/[`*#>]//g
               s/_/ /g' \
     | av_strip_emoji \
-    | sed -E 's/\.{2,}/./g; s/[[:space:]]+/ /g; s/^ //; s/ $//' \
-    | cut -c1-"$AV_MAX_SPEECH_CHARS"
+    | sed -E 's/\.{2,}/./g; s/[[:space:]]+/ /g; s/^ //; s/ $//')
+  # Truncate safely by character count, respecting UTF-8 boundaries
+  printf '%s\n' "$text" | AV_MAX_SPEECH_CHARS="$AV_MAX_SPEECH_CHARS" perl -CSD -ne 'printf "%s\n", substr($_, 0, $ENV{AV_MAX_SPEECH_CHARS})'
 }
 
 # Used before joining two fragments, so "travados." + ". Foco" does not become

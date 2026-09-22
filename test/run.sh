@@ -105,5 +105,13 @@ check "speech: truncates to the limit" \
   "aaaaaaaaaaaaaaaaaaaa" \
   "$(AV_MAX_SPEECH_CHARS=20 av_clean_speech <<< 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')"
 
+check "speech: UTF-8 truncation safe at character boundary under C locale" \
+  "ação" \
+  "$(AV_MAX_SPEECH_CHARS=4 LC_ALL=C bash -c "AV_ROOT='$AV_ROOT' && . \$AV_ROOT/lib/speech.sh && printf 'ação extra stuff' | av_clean_speech")"
+
+check "speech: removes stray brackets not in links or ids" \
+  "text with bracket" \
+  "$(printf 'text [ with bracket' | av_clean_speech)"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
