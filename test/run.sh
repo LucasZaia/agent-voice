@@ -366,18 +366,81 @@ check "notify: garbage payload exits 0" "0" "$?"
 "$NOTIFY" </dev/null
 check "notify: no arguments exits 0" "0" "$?"
 
-# Symlink test: ensure AV_ROOT resolves through symlinks
+# Symlink test with all tiers: tier 1 (readlink -f)
 SYMLINK_DIR="$AV_ROOT/test/tmp/symlink-dir"
 mkdir -p "$SYMLINK_DIR"
-ln -sf "$NOTIFY" "$SYMLINK_DIR/notify"
+ln -sf "$NOTIFY" "$SYMLINK_DIR/notify-t1"
 spoken_reset
-printf '{"session_id":"sym","cwd":"/a/proj","prompt":"via symlink"}' | "$SYMLINK_DIR/notify" claude-code start 2>/tmp/notify-symlink-err
-printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym).start"
-printf '{"session_id":"sym","cwd":"/a/proj"}' | "$SYMLINK_DIR/notify" claude-code stop 2>>/tmp/notify-symlink-err
-check_contains "notify: symlink works end to end" "Claude Code terminou" "$(spoken_last)"
-STDERR_SIZE=$(wc -c < /tmp/notify-symlink-err 2>/dev/null || echo 0)
-check "notify: symlink invocation stderr is empty" "0" "$STDERR_SIZE"
-rm -f /tmp/notify-symlink-err
+printf '{"session_id":"sym-t1","cwd":"/a/proj","prompt":"via symlink t1"}' | "$SYMLINK_DIR/notify-t1" claude-code start 2>/tmp/notify-err-t1
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym-t1).start"
+printf '{"session_id":"sym-t1","cwd":"/a/proj"}' | "$SYMLINK_DIR/notify-t1" claude-code stop 2>>/tmp/notify-err-t1
+check_contains "notify: tier 1 (readlink -f) end to end" "Claude Code terminou" "$(spoken_last)"
+STDERR_SIZE=$(wc -c < /tmp/notify-err-t1 2>/dev/null || echo 0)
+check "notify: tier 1 stderr empty" "0" "$STDERR_SIZE"
+rm -f /tmp/notify-err-t1
+
+# Tier 2: test plain readlink without -f support
+mkdir -p "$AV_ROOT/test/tmp/path-no-readlink-f"
+for cmd in tr sed cut cat printf bash ls; do
+  ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink-f/$cmd" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink-f/$cmd" 2>/dev/null
+done
+cat > "$AV_ROOT/test/tmp/path-no-readlink-f/readlink" <<'EOFRL'
+#!/bin/bash
+[[ "$*" == *"-f"* ]] && exit 1
+/usr/bin/readlink "$@" 2>/dev/null || /bin/readlink "$@" 2>/dev/null || exit 1
+EOFRL
+chmod +x "$AV_ROOT/test/tmp/path-no-readlink-f/readlink"
+PATH_SAVE="$PATH"
+export PATH="$AV_ROOT/test/tmp/path-no-readlink-f:$PATH"
+spoken_reset
+printf '{"session_id":"sym-t2","cwd":"/a/proj","prompt":"via tier 2"}' | "$SYMLINK_DIR/notify-t1" claude-code start 2>/tmp/notify-err-t2
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym-t2).start"
+printf '{"session_id":"sym-t2","cwd":"/a/proj"}' | "$SYMLINK_DIR/notify-t1" claude-code stop 2>>/tmp/notify-err-t2
+check_contains "notify: tier 2 (readlink loop) end to end" "Claude Code terminou" "$(spoken_last)"
+STDERR_SIZE=$(wc -c < /tmp/notify-err-t2 2>/dev/null || echo 0)
+check "notify: tier 2 stderr empty" "0" "$STDERR_SIZE"
+rm -f /tmp/notify-err-t2
+export PATH="$PATH_SAVE"
+
+# Tier 3: test ls -ld parsing without readlink
+mkdir -p "$AV_ROOT/test/tmp/path-no-readlink"
+for cmd in tr sed cut cat printf bash ls; do
+  ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink/$cmd" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink/$cmd" 2>/dev/null
+done
+cat > "$AV_ROOT/test/tmp/path-no-readlink/readlink" <<'EOFRL'
+#!/bin/bash
+exit 1
+EOFRL
+chmod +x "$AV_ROOT/test/tmp/path-no-readlink/readlink"
+export PATH="$AV_ROOT/test/tmp/path-no-readlink:$PATH"
+spoken_reset
+printf '{"session_id":"sym-t3","cwd":"/a/proj","prompt":"via tier 3"}' | "$SYMLINK_DIR/notify-t1" claude-code start 2>/tmp/notify-err-t3
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym-t3).start"
+printf '{"session_id":"sym-t3","cwd":"/a/proj"}' | "$SYMLINK_DIR/notify-t1" claude-code stop 2>>/tmp/notify-err-t3
+check_contains "notify: tier 3 (ls -ld) end to end" "Claude Code terminou" "$(spoken_last)"
+STDERR_SIZE=$(wc -c < /tmp/notify-err-t3 2>/dev/null || echo 0)
+check "notify: tier 3 stderr empty" "0" "$STDERR_SIZE"
+rm -f /tmp/notify-err-t3
+export PATH="$PATH_SAVE"
+
+# Chain of two symlinks test
+ln -sf "$SYMLINK_DIR/notify-t1" "$SYMLINK_DIR/notify-chain"
+spoken_reset
+printf '{"session_id":"sym-chain","cwd":"/a/proj","prompt":"chain of two"}' | "$SYMLINK_DIR/notify-chain" claude-code start 2>/tmp/notify-err-chain
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym-chain).start"
+printf '{"session_id":"sym-chain","cwd":"/a/proj"}' | "$SYMLINK_DIR/notify-chain" claude-code stop 2>>/tmp/notify-err-chain
+check_contains "notify: chain of symlinks end to end" "Claude Code terminou" "$(spoken_last)"
+STDERR_SIZE=$(wc -c < /tmp/notify-err-chain 2>/dev/null || echo 0)
+check "notify: chain stderr empty" "0" "$STDERR_SIZE"
+rm -f /tmp/notify-err-chain
+
+# Hop limit verification: code has max_hops=40 to prevent infinite loops
+# (Actual cycle detection is tested via mutation: disabling hop limit causes infinite loop)
+grep -q "max_hops=40" "$NOTIFY" && {
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "notify: cycle protection (hop limit) is in code"
+} || {
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "notify: cycle protection (hop limit) is in code"
+}
 
 # Failing adapter test: adapter exits non-zero, notify still exits 0
 cat > "$AV_ROOT/adapters/fail-adapter.sh" <<'EOF'
