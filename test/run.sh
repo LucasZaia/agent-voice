@@ -170,7 +170,8 @@ check "state: elapsed is a number" \
   "0" "$(av_turn_elapsed claude-code s-a)"
 
 # Backdate the marker to simulate a long turn.
-printf '%s' "$(( $(date +%s) - 300 ))" > "$AV_STATE_DIR/claude-code/s-a.start"
+SA_PATH="$(av_state_path claude-code s-a)"
+printf '%s' "$(( $(date +%s) - 300 ))" > "$SA_PATH.start"
 check "state: elapsed reflects a backdated marker" \
   "300" "$(av_turn_elapsed claude-code s-a)"
 
@@ -189,32 +190,48 @@ check "state: clearing one session leaves the other" \
 av_cooldown_ok claude-code s-c; check "state: cooldown open when unset" "0" "$?"
 av_cooldown_stamp claude-code s-c
 av_cooldown_ok claude-code s-c; check "state: cooldown closed right after" "1" "$?"
-printf '%s' "$(( $(date +%s) - 200 ))" > "$AV_STATE_DIR/claude-code/s-c.cooldown"
+SC_PATH="$(av_state_path claude-code s-c)"
+printf '%s' "$(( $(date +%s) - 200 ))" > "$SC_PATH.cooldown"
 av_cooldown_ok claude-code s-c; check "state: cooldown reopens after the window" "0" "$?"
 
-# Path traversal test: ensure sanitization prevents directory traversal
+# Path traversal test: resolved path must stay inside AV_STATE_DIR
 av_turn_start "claude-code" "../../etc/passwd" "test"
-# The path should be sanitized, not create /etc/passwd
-if [ ! -f "/etc/passwd.start" ] && [ ! -f "/etc/passwd.text" ]; then
-  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: path traversal blocked (../../etc/passwd)"
+RESOLVED_PATH="$(av_state_path "claude-code" "../../etc/passwd")"
+# Check that the resolved path is inside AV_STATE_DIR and contains no escape characters
+if [[ "$RESOLVED_PATH" == "$AV_STATE_DIR"/* ]] && ! grep -q '\.\.' <<< "$RESOLVED_PATH"; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: path traversal resolved inside AV_STATE_DIR"
 else
-  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: path traversal blocked (../../etc/passwd)"
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: path traversal resolved inside AV_STATE_DIR"
 fi
 
-# Verify the sanitized path was used instead (../../etc/passwd becomes etcpasswd after tr -cd 'a-zA-Z0-9_-')
-SAFE_PATH="$AV_STATE_DIR/claude-code/etcpasswd"
-if [ -f "$SAFE_PATH.start" ] && [ -f "$SAFE_PATH.text" ]; then
-  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: dangerous characters sanitized in filesystem path"
+# Verify no files exist outside AV_STATE_DIR after the attack attempt
+if [ ! -f "/etc/passwd.start" ] && [ ! -f "/etc/passwd.text" ] && [ ! -f "/../../etc/passwd.start" ]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: no files created outside AV_STATE_DIR"
 else
-  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: dangerous characters sanitized in filesystem path"
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: no files created outside AV_STATE_DIR"
 fi
 
-# Path traversal with slashes in session ID
-av_turn_start "agent1" "sess/with/slash" "dangerous"
-if [ ! -f "/with/slash.start" ] && [ ! -f "$AV_STATE_DIR/with/slash.start" ]; then
-  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: slashes in session ID are sanitized"
+# Collision test: different session IDs should not collide
+av_turn_start "claude-code" "a/b" "text from a/b"
+av_turn_start "claude-code" "ab" "text from ab"
+TEXT_AB_SLASH="$(av_turn_text claude-code a/b)"
+TEXT_AB="$(av_turn_text claude-code ab)"
+if [ "$TEXT_AB_SLASH" = "text from a/b" ] && [ "$TEXT_AB" = "text from ab" ]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: session IDs with different separators do not collide"
 else
-  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: slashes in session ID are sanitized"
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n       a/b got: [%s], ab got: [%s]\n' "state: session IDs with different separators do not collide" "$TEXT_AB_SLASH" "$TEXT_AB"
+fi
+
+# Clock skew test: future timestamp should return 0, not negative
+av_turn_start "claude-code" "skew-test" "clock skew"
+FUTURE_TIME=$(( $(date +%s) + 100 ))
+SKEW_PATH="$(av_state_path claude-code skew-test)"
+printf '%s' "$FUTURE_TIME" > "$SKEW_PATH.start"
+SKEW_ELAPSED="$(av_turn_elapsed claude-code skew-test)"
+if [ "$SKEW_ELAPSED" = "0" ]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: future timestamp clamped to 0"
+else
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n       expected 0, got: [%s]\n' "state: future timestamp clamped to 0" "$SKEW_ELAPSED"
 fi
 
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
