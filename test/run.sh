@@ -113,5 +113,13 @@ check "speech: removes stray brackets not in links or ids" \
   "text with bracket" \
   "$(printf 'text [ with bracket' | av_clean_speech)"
 
+# For the degraded-path test, create a restricted PATH without perl
+mkdir -p "$AV_ROOT/test/tmp/path-no-perl"
+for cmd in tr sed cut cat printf bash; do ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-no-perl/" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-no-perl/" 2>/dev/null; done
+
+check "speech: degrades gracefully without perl" \
+  "hello world" \
+  "$(PATH="$AV_ROOT/test/tmp/path-no-perl" bash -c "AV_ROOT='$AV_ROOT' AV_MAX_SPEECH_CHARS=90 && . \$AV_ROOT/lib/speech.sh && printf 'hello world' | av_clean_speech")"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

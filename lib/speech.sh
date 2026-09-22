@@ -22,8 +22,12 @@ av_clean_speech() { # stdin -> stdout
               s/_/ /g' \
     | av_strip_emoji \
     | sed -E 's/\.{2,}/./g; s/[[:space:]]+/ /g; s/^ //; s/ $//')
-  # Truncate safely by character count, respecting UTF-8 boundaries
-  printf '%s\n' "$text" | AV_MAX_SPEECH_CHARS="$AV_MAX_SPEECH_CHARS" perl -CSD -ne 'printf "%s\n", substr($_, 0, $ENV{AV_MAX_SPEECH_CHARS})'
+  # Truncate safely by character count. perl gives UTF-8 safety; cut -c degrades gracefully when unavailable.
+  if command -v perl >/dev/null 2>&1; then
+    printf '%s\n' "$text" | AV_MAX_SPEECH_CHARS="$AV_MAX_SPEECH_CHARS" perl -CSD -ne 'printf "%s\n", substr($_, 0, $ENV{AV_MAX_SPEECH_CHARS})'
+  else
+    printf '%s\n' "$text" | cut -c1-"$AV_MAX_SPEECH_CHARS"
+  fi
 }
 
 # Used before joining two fragments, so "travados." + ". Foco" does not become
