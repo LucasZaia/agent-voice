@@ -160,5 +160,62 @@ check "phrases: needs input" \
   "Claude Code precisa de você na sessão X. permission needed." \
   "$(av_phrase_needs_input "Claude Code" "na sessão X" "permission needed")"
 
+# --- state ------------------------------------------------------------------
+. "$AV_ROOT/lib/state.sh"
+
+av_turn_start "claude-code" "s-a" "pedido da sessao A"
+check "state: stores the request text" \
+  "pedido da sessao A" "$(av_turn_text claude-code s-a)"
+check "state: elapsed is a number" \
+  "0" "$(av_turn_elapsed claude-code s-a)"
+
+# Backdate the marker to simulate a long turn.
+printf '%s' "$(( $(date +%s) - 300 ))" > "$AV_STATE_DIR/claude-code/s-a.start"
+check "state: elapsed reflects a backdated marker" \
+  "300" "$(av_turn_elapsed claude-code s-a)"
+
+# Two sessions must not clobber each other.
+av_turn_start "claude-code" "s-b" "pedido da sessao B"
+check "state: sessions are isolated" \
+  "pedido da sessao A" "$(av_turn_text claude-code s-a)"
+
+av_turn_clear claude-code s-a
+av_turn_elapsed claude-code s-a >/dev/null 2>&1
+check "state: elapsed fails after clear" "1" "$?"
+check "state: clearing one session leaves the other" \
+  "pedido da sessao B" "$(av_turn_text claude-code s-b)"
+
+# Cooldown.
+av_cooldown_ok claude-code s-c; check "state: cooldown open when unset" "0" "$?"
+av_cooldown_stamp claude-code s-c
+av_cooldown_ok claude-code s-c; check "state: cooldown closed right after" "1" "$?"
+printf '%s' "$(( $(date +%s) - 200 ))" > "$AV_STATE_DIR/claude-code/s-c.cooldown"
+av_cooldown_ok claude-code s-c; check "state: cooldown reopens after the window" "0" "$?"
+
+# Path traversal test: ensure sanitization prevents directory traversal
+av_turn_start "claude-code" "../../etc/passwd" "test"
+# The path should be sanitized, not create /etc/passwd
+if [ ! -f "/etc/passwd.start" ] && [ ! -f "/etc/passwd.text" ]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: path traversal blocked (../../etc/passwd)"
+else
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: path traversal blocked (../../etc/passwd)"
+fi
+
+# Verify the sanitized path was used instead (../../etc/passwd becomes etcpasswd after tr -cd 'a-zA-Z0-9_-')
+SAFE_PATH="$AV_STATE_DIR/claude-code/etcpasswd"
+if [ -f "$SAFE_PATH.start" ] && [ -f "$SAFE_PATH.text" ]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: dangerous characters sanitized in filesystem path"
+else
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: dangerous characters sanitized in filesystem path"
+fi
+
+# Path traversal with slashes in session ID
+av_turn_start "agent1" "sess/with/slash" "dangerous"
+if [ ! -f "/with/slash.start" ] && [ ! -f "$AV_STATE_DIR/with/slash.start" ]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "state: slashes in session ID are sanitized"
+else
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n' "state: slashes in session ID are sanitized"
+fi
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
