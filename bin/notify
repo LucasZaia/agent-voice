@@ -11,7 +11,7 @@ set -uo pipefail
 # Uses three tiers: readlink -f, plain readlink in loop, ls -ld parsing.
 # Detects cycles and logs unresolvable symlinks to avoid silent wrong-root.
 _resolve_symlink() {
-  local path="$1" count=0 max_hops=40
+  local path="$1" max_hops=40
 
   # Tier 1: readlink -f (resolves full chain at once)
   if command -v readlink >/dev/null 2>&1; then
@@ -25,8 +25,8 @@ _resolve_symlink() {
 
   # Tier 2: plain readlink in a loop (one hop at a time, relative target aware)
   if command -v readlink >/dev/null 2>&1; then
-    local current="$path" target
-    while [ $count -lt $max_hops ]; do
+    local current="$path" target count_t2=0
+    while [ $count_t2 -lt $max_hops ]; do
       target="$(readlink "$current" 2>/dev/null)" || break
       if [ -z "$target" ]; then break; fi
       # If target is relative, resolve relative to current's directory
@@ -34,9 +34,9 @@ _resolve_symlink() {
         target="$(cd "$(dirname "$current")" 2>/dev/null && pwd)/$target"
       fi
       current="$target"
-      count=$((count + 1))
+      count_t2=$((count_t2 + 1))
     done
-    if [ $count -gt 0 ] && [ $count -lt $max_hops ]; then
+    if [ $count_t2 -gt 0 ] && [ $count_t2 -lt $max_hops ]; then
       printf '%s' "$current"
       return 0
     fi
@@ -44,8 +44,8 @@ _resolve_symlink() {
 
   # Tier 3: parse ls -ld output (works on minimal systems)
   if command -v ls >/dev/null 2>&1; then
-    local current="$path" target ls_out
-    while [ $count -lt $max_hops ]; do
+    local current="$path" target ls_out count_t3=0
+    while [ $count_t3 -lt $max_hops ]; do
       ls_out="$(ls -ld "$current" 2>/dev/null)" || break
       # If not a symlink, we're done
       [[ "$ls_out" != l* ]] && break
@@ -57,9 +57,9 @@ _resolve_symlink() {
         target="$(cd "$(dirname "$current")" 2>/dev/null && pwd)/$target"
       fi
       current="$target"
-      count=$((count + 1))
+      count_t3=$((count_t3 + 1))
     done
-    if [ $count -gt 0 ] && [ $count -lt $max_hops ]; then
+    if [ $count_t3 -gt 0 ] && [ $count_t3 -lt $max_hops ]; then
       printf '%s' "$current"
       return 0
     fi

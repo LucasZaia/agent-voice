@@ -366,10 +366,29 @@ check "notify: garbage payload exits 0" "0" "$?"
 "$NOTIFY" </dev/null
 check "notify: no arguments exits 0" "0" "$?"
 
-# Symlink test with all tiers: tier 1 (readlink -f)
+# Tier 1: test readlink -f (with Tier 2 & 3 disabled)
+mkdir -p "$AV_ROOT/test/tmp/path-tier1-only"
+for cmd in tr sed cut cat printf bash; do
+  ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-tier1-only/$cmd" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-tier1-only/$cmd" 2>/dev/null
+done
+# Shim readlink: allow -f to pass through, fail on plain readlink (so Tier 2 fails)
+cat > "$AV_ROOT/test/tmp/path-tier1-only/readlink" <<'EOFRL'
+#!/bin/bash
+[[ "$*" == *"-f"* ]] && exec /usr/bin/readlink "$@"
+exit 1
+EOFRL
+chmod +x "$AV_ROOT/test/tmp/path-tier1-only/readlink"
+# Make ls fail (so Tier 3 can't run)
+cat > "$AV_ROOT/test/tmp/path-tier1-only/ls" <<'EOFLS'
+#!/bin/bash
+exit 1
+EOFLS
+chmod +x "$AV_ROOT/test/tmp/path-tier1-only/ls"
 SYMLINK_DIR="$AV_ROOT/test/tmp/symlink-dir"
 mkdir -p "$SYMLINK_DIR"
 ln -sf "$NOTIFY" "$SYMLINK_DIR/notify-t1"
+PATH_SAVE="$PATH"
+export PATH="$AV_ROOT/test/tmp/path-tier1-only:$PATH"
 spoken_reset
 printf '{"session_id":"sym-t1","cwd":"/a/proj","prompt":"via symlink t1"}' | "$SYMLINK_DIR/notify-t1" claude-code start 2>/tmp/notify-err-t1
 printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym-t1).start"
@@ -378,20 +397,28 @@ check_contains "notify: tier 1 (readlink -f) end to end" "Claude Code terminou" 
 STDERR_SIZE=$(wc -c < /tmp/notify-err-t1 2>/dev/null || echo 0)
 check "notify: tier 1 stderr empty" "0" "$STDERR_SIZE"
 rm -f /tmp/notify-err-t1
+export PATH="$PATH_SAVE"
 
-# Tier 2: test plain readlink without -f support
-mkdir -p "$AV_ROOT/test/tmp/path-no-readlink-f"
-for cmd in tr sed cut cat printf bash ls; do
-  ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink-f/$cmd" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink-f/$cmd" 2>/dev/null
+# Tier 2: test plain readlink without -f support (and no ls)
+mkdir -p "$AV_ROOT/test/tmp/path-tier2-only"
+for cmd in tr sed cut cat printf bash; do
+  ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-tier2-only/$cmd" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-tier2-only/$cmd" 2>/dev/null
 done
-cat > "$AV_ROOT/test/tmp/path-no-readlink-f/readlink" <<'EOFRL'
+# Shim readlink: rejects -f but delegates plain calls
+cat > "$AV_ROOT/test/tmp/path-tier2-only/readlink" <<'EOFRL'
 #!/bin/bash
 [[ "$*" == *"-f"* ]] && exit 1
 /usr/bin/readlink "$@" 2>/dev/null || /bin/readlink "$@" 2>/dev/null || exit 1
 EOFRL
-chmod +x "$AV_ROOT/test/tmp/path-no-readlink-f/readlink"
+chmod +x "$AV_ROOT/test/tmp/path-tier2-only/readlink"
+# Make ls fail so Tier 3 can't run
+cat > "$AV_ROOT/test/tmp/path-tier2-only/ls" <<'EOFLS'
+#!/bin/bash
+exit 1
+EOFLS
+chmod +x "$AV_ROOT/test/tmp/path-tier2-only/ls"
 PATH_SAVE="$PATH"
-export PATH="$AV_ROOT/test/tmp/path-no-readlink-f:$PATH"
+export PATH="$AV_ROOT/test/tmp/path-tier2-only:$PATH"
 spoken_reset
 printf '{"session_id":"sym-t2","cwd":"/a/proj","prompt":"via tier 2"}' | "$SYMLINK_DIR/notify-t1" claude-code start 2>/tmp/notify-err-t2
 printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym-t2).start"
@@ -403,16 +430,17 @@ rm -f /tmp/notify-err-t2
 export PATH="$PATH_SAVE"
 
 # Tier 3: test ls -ld parsing without readlink
-mkdir -p "$AV_ROOT/test/tmp/path-no-readlink"
+mkdir -p "$AV_ROOT/test/tmp/path-tier3-only"
 for cmd in tr sed cut cat printf bash ls; do
-  ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink/$cmd" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-no-readlink/$cmd" 2>/dev/null
+  ln -sf /usr/bin/$cmd "$AV_ROOT/test/tmp/path-tier3-only/$cmd" 2>/dev/null || ln -sf /bin/$cmd "$AV_ROOT/test/tmp/path-tier3-only/$cmd" 2>/dev/null
 done
-cat > "$AV_ROOT/test/tmp/path-no-readlink/readlink" <<'EOFRL'
+# Make readlink fail (so Tier 1 & 2 can't run)
+cat > "$AV_ROOT/test/tmp/path-tier3-only/readlink" <<'EOFRL'
 #!/bin/bash
 exit 1
 EOFRL
-chmod +x "$AV_ROOT/test/tmp/path-no-readlink/readlink"
-export PATH="$AV_ROOT/test/tmp/path-no-readlink:$PATH"
+chmod +x "$AV_ROOT/test/tmp/path-tier3-only/readlink"
+export PATH="$AV_ROOT/test/tmp/path-tier3-only:$PATH"
 spoken_reset
 printf '{"session_id":"sym-t3","cwd":"/a/proj","prompt":"via tier 3"}' | "$SYMLINK_DIR/notify-t1" claude-code start 2>/tmp/notify-err-t3
 printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym-t3).start"
