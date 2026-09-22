@@ -37,7 +37,7 @@ Then point the agent's hooks at `bin/notify`. For Claude Code, in
 
 | Event | Rule |
 |---|---|
-| Turn finished | Only past `AV_MIN_SECONDS` (60s). Otherwise it would talk after every "ok" |
+| Turn finished | Only past `AV_MIN_SECONDS` (30s). Otherwise it would talk after every "ok" |
 | Background work finished | At most once per `AV_COOLDOWN_SECONDS` (120s), so ten subagents are not ten announcements |
 | Needs your input | Always — it is blocking on you |
 
@@ -47,7 +47,7 @@ Everything in `config.sh` reads from the environment first:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `AV_MIN_SECONDS` | 60 | Duration threshold for a finished turn |
+| `AV_MIN_SECONDS` | 30 | Duration threshold for a finished turn |
 | `AV_COOLDOWN_SECONDS` | 120 | Minimum gap between background announcements |
 | `AV_MAX_SPEECH_CHARS` | 90 | Cut for the quoted request |
 | `AV_OUTPUTS` | `alexa` | Space-separated output names |

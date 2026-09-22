@@ -40,7 +40,7 @@ check_contains() { # check_contains <name> <needle> <haystack>
 . "$AV_ROOT/lib/log.sh"
 
 # --- config -----------------------------------------------------------------
-check "config: default threshold" "60" "$AV_MIN_SECONDS"
+check "config: default threshold" "30" "$AV_MIN_SECONDS"
 check "config: default cooldown" "120" "$AV_COOLDOWN_SECONDS"
 
 # --- log --------------------------------------------------------------------
