@@ -303,5 +303,48 @@ check_contains "core: session B keeps its own request" "pedido B" "$(head -1 "$A
 check_contains "core: session A keeps its own request" "pedido A" "$(tail -1 "$AV_SPOKEN")"
 check_contains "core: session B keeps its own duration" "cerca de 10 minutos" "$(head -1 "$AV_SPOKEN")"
 
+# --- claude-code adapter ----------------------------------------------------
+CC="$AV_ROOT/adapters/claude-code.sh"
+
+hook_json='{"session_id":"04c02385","cwd":"/home/u/softwares/home-assistant","prompt":"criar o compose","transcript_path":"/nao/existe.jsonl"}'
+
+check "adapter: start maps to turn_start" \
+  "turn_start" "$(printf '%s' "$hook_json" | "$CC" start | jq -r .type)"
+check "adapter: carries the agent name" \
+  "claude-code" "$(printf '%s' "$hook_json" | "$CC" start | jq -r .agent)"
+check "adapter: carries the session id" \
+  "04c02385" "$(printf '%s' "$hook_json" | "$CC" start | jq -r .session_id)"
+check "adapter: project is the last cwd segment" \
+  "home-assistant" "$(printf '%s' "$hook_json" | "$CC" start | jq -r .project)"
+check "adapter: text is the prompt" \
+  "criar o compose" "$(printf '%s' "$hook_json" | "$CC" start | jq -r .text)"
+
+check "adapter: stop maps to task_done" \
+  "task_done" "$(printf '%s' "$hook_json" | "$CC" stop | jq -r .type)"
+check "adapter: task maps to background_done" \
+  "background_done" "$(printf '%s' "$hook_json" | "$CC" task | jq -r .type)"
+check "adapter: notification maps to needs_input" \
+  "needs_input" "$(printf '%s' "$hook_json" | "$CC" notification | jq -r .type)"
+
+check "adapter: notification text is the hook message" \
+  "permission needed" \
+  "$(printf '{"session_id":"s","cwd":"/a/b","message":"permission needed"}' | "$CC" notification | jq -r .text)"
+
+check "adapter: home directory is not a project" \
+  "" "$(printf '{"session_id":"s","cwd":"%s","prompt":"x"}' "$HOME" | "$CC" start | jq -r .project)"
+
+# session_name comes from the transcript's most recent ai-title record.
+mkdir -p "$AV_ROOT/test/tmp"
+TR="$AV_ROOT/test/tmp/fake.jsonl"
+printf '%s\n' '{"type":"ai-title","aiTitle":"Older title"}' \
+               '{"type":"user","message":"x"}' \
+               '{"type":"ai-title","aiTitle":"Home-assistant repo"}' > "$TR"
+check "adapter: session name comes from the newest ai-title" \
+  "Home assistant repo" \
+  "$(jq -n --arg t "$TR" '{session_id:"s",cwd:"/a/b",prompt:"x",transcript_path:$t}' | "$CC" start | jq -r .session_name)"
+
+check "adapter: missing transcript leaves the name empty" \
+  "" "$(printf '%s' "$hook_json" | "$CC" start | jq -r .session_name)"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
