@@ -346,5 +346,25 @@ check "adapter: session name comes from the newest ai-title" \
 check "adapter: missing transcript leaves the name empty" \
   "" "$(printf '%s' "$hook_json" | "$CC" start | jq -r .session_name)"
 
+# --- entry point ------------------------------------------------------------
+NOTIFY="$AV_ROOT/bin/notify"
+
+spoken_reset
+printf '{"session_id":"e1","cwd":"/a/proj","prompt":"tarefa longa"}' | "$NOTIFY" claude-code start
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code e1).start"
+printf '{"session_id":"e1","cwd":"/a/proj"}' | "$NOTIFY" claude-code stop
+check_contains "notify: end to end speaks" "Claude Code terminou" "$(spoken_last)"
+check_contains "notify: end to end quotes the request" "tarefa longa" "$(spoken_last)"
+
+printf '{}' | "$NOTIFY" nao-existe start
+check "notify: unknown agent exits 0" "0" "$?"
+check_contains "notify: unknown agent is logged" "no adapter" "$(cat "$AV_STATE_DIR/events.log")"
+
+printf 'lixo' | "$NOTIFY" claude-code start
+check "notify: garbage payload exits 0" "0" "$?"
+
+"$NOTIFY" </dev/null
+check "notify: no arguments exits 0" "0" "$?"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

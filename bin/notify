@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Single entry point. Every hook, wrapper or watcher calls this:
+#
+#   notify <agent> <subcommand>      # the agent's native payload on stdin
+#
+# Exits 0 in every scenario, on purpose: a hook that hangs or fails is worse
+# than one that does not exist.
+set -uo pipefail
+
+AV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export AV_ROOT
+. "$AV_ROOT/config.sh"
+. "$AV_ROOT/lib/core.sh"
+
+agent="${1:-}"
+subcommand="${2:-}"
+
+if [ -z "$agent" ] || [ -z "$subcommand" ]; then
+  av_log "${agent:-?}" "-" "ignored: usage is notify <agent> <subcommand>"
+  exit 0
+fi
+
+adapter="$AV_ROOT/adapters/$agent.sh"
+if [ ! -x "$adapter" ]; then
+  av_log "$agent" "-" "no adapter at $adapter"
+  exit 0
+fi
+
+"$adapter" "$subcommand" | av_handle
+exit 0
