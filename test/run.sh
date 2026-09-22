@@ -234,5 +234,74 @@ else
   FAIL=$((FAIL + 1)); printf 'FAIL %s\n       expected 0, got: [%s]\n' "state: future timestamp clamped to 0" "$SKEW_ELAPSED"
 fi
 
+# --- core -------------------------------------------------------------------
+. "$AV_ROOT/lib/core.sh"
+
+spoken_reset() { : > "$AV_SPOKEN"; }
+spoken_last() { tail -1 "$AV_SPOKEN" 2>/dev/null; }
+spoken_count() { wc -l < "$AV_SPOKEN" 2>/dev/null | tr -d ' '; }
+
+ev() { # ev <type> <session_id> [name] [project] [text]
+  jq -n --arg t "$1" --arg s "$2" --arg n "${3:-}" --arg p "${4:-}" --arg x "${5:-}" \
+    '{type:$t, agent:"claude-code", session_id:$s, session_name:$n, project:$p, text:$x}'
+}
+
+# A short turn stays silent.
+spoken_reset
+ev turn_start c1 "Repo X" "proj" "pedido curto" | av_handle
+ev task_done c1 "Repo X" "proj" | av_handle
+check "core: short turn is silent" "0" "$(spoken_count)"
+check_contains "core: short turn logs the reason" "silent (turn" "$(cat "$AV_STATE_DIR/events.log")"
+
+# A long turn speaks, with duration and the stored request.
+spoken_reset
+ev turn_start c2 "Repo X" "proj" "criar o compose" | av_handle
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code c2).start"
+ev task_done c2 "Repo X" "proj" | av_handle
+check "core: long turn speaks" \
+  "Claude Code terminou na sessão Repo X, depois de cerca de 4 minutos. Você tinha pedido: criar o compose." \
+  "$(spoken_last)"
+
+# A burst of background events collapses to one.
+spoken_reset
+for i in 1 2 3 4; do ev background_done c3 "Repo X" "proj" "revisor $i" | av_handle; done
+check "core: background burst collapses" "1" "$(spoken_count)"
+
+# needs_input is never filtered, even inside the cooldown.
+ev needs_input c3 "Repo X" "proj" "permission needed" | av_handle
+check "core: needs_input ignores the cooldown" \
+  "Claude Code precisa de você na sessão Repo X. permission needed." \
+  "$(spoken_last)"
+
+# Falls back to the derived label with no session name.
+spoken_reset
+ev turn_start c4 "" "proj" "x" | av_handle
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code c4).start"
+ev task_done c4 "" "proj" | av_handle
+check_contains "core: falls back to the session label" \
+  "na sessão $(av_session_label c4), do projeto proj" "$(spoken_last)"
+
+# task_done with no preceding turn_start does not speak or crash.
+spoken_reset
+ev task_done c9 "Repo X" "proj" | av_handle
+check "core: task_done without a marker is silent" "0" "$(spoken_count)"
+
+# Garbage in, exit 0 out.
+printf 'not json' | av_handle
+check "core: invalid payload returns 0" "0" "$?"
+
+# Two concurrent sessions produce two distinct sentences.
+spoken_reset
+ev turn_start cA "Sessao A" "proj-a" "pedido A" | av_handle
+ev turn_start cB "Sessao B" "proj-b" "pedido B" | av_handle
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code cA).start"
+printf '%s' "$(( $(date +%s) - 600 ))" > "$(av_state_path claude-code cB).start"
+ev task_done cB "Sessao B" "proj-b" | av_handle
+ev task_done cA "Sessao A" "proj-a" | av_handle
+check "core: concurrent sessions both speak" "2" "$(spoken_count)"
+check_contains "core: session B keeps its own request" "pedido B" "$(head -1 "$AV_SPOKEN")"
+check_contains "core: session A keeps its own request" "pedido A" "$(tail -1 "$AV_SPOKEN")"
+check_contains "core: session B keeps its own duration" "cerca de 10 minutos" "$(head -1 "$AV_SPOKEN")"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
