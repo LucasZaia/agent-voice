@@ -40,9 +40,19 @@ LOG_LINE="$(cat "$AV_STATE_DIR/events.log")"
 check_contains "log: writes the message" "hello" "$LOG_LINE"
 check_contains "log: writes the agent" "claude-code" "$LOG_LINE"
 
-# FINDING 1: timestamp format - line must start with YYYY-MM-DD HH:MM:SS
-check_contains "log: starts with YYYY-MM-DD" "2026-09-22" "$LOG_LINE"
-check_contains "log: has HH:MM:SS timestamp" "13:" "$LOG_LINE"
+# FINDING 1: timestamp shape at start of line (YYYY-MM-DD HH:MM:SS), anchored
+if [[ "$LOG_LINE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2} ]]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "log: timestamp format YYYY-MM-DD HH:MM:SS at start"
+else
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n       expected timestamp at start matching YYYY-MM-DD HH:MM:SS\n       actual:   [%s]\n' "log: timestamp format YYYY-MM-DD HH:MM:SS at start" "$LOG_LINE"
+fi
+
+# FINDING 1: field order - timestamp, agent, session, message in that order
+if [[ "$LOG_LINE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}\ +claude-code\ +sess1\ +hello ]]; then
+  PASS=$((PASS + 1)); printf 'ok   %s\n' "log: field order is timestamp, agent, session, message"
+else
+  FAIL=$((FAIL + 1)); printf 'FAIL %s\n       expected order: timestamp, claude-code, sess1, hello\n       actual:   [%s]\n' "log: field order is timestamp, agent, session, message" "$LOG_LINE"
+fi
 
 # FINDING 1: session truncation to 8 characters
 av_log "test-agent" "long-session-id-1234567890" "truncation-test"
