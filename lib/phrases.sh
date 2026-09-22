@@ -21,11 +21,11 @@ av_session_label() { # av_session_label <session_id>
 
 av_where() { # av_where <session_id> <session_name> <project>
   if [ -n "$2" ]; then
-    printf 'na sessao %s' "$2"
+    printf 'na sessão %s' "$2"
   elif [ -n "$3" ]; then
-    printf 'na sessao %s, do projeto %s' "$(av_session_label "$1")" "$3"
+    printf 'na sessão %s, do projeto %s' "$(av_session_label "$1")" "$3"
   else
-    printf 'na sessao %s' "$(av_session_label "$1")"
+    printf 'na sessão %s' "$(av_session_label "$1")"
   fi
 }
 
@@ -40,7 +40,7 @@ av_duration_phrase() { # av_duration_phrase <seconds>
 
 av_phrase_task_done() { # <agent_name> <where> <duration_phrase> <text>
   printf '%s terminou %s, depois de %s.' "$1" "$2" "$3"
-  [ -n "$4" ] && printf ' Voce tinha pedido: %s.' "$(printf '%s' "$4" | av_strip_trailing_punct)"
+  [ -n "$4" ] && printf ' Você tinha pedido: %s.' "$(printf '%s' "$4" | av_strip_trailing_punct)"
   return 0
 }
 
@@ -51,7 +51,7 @@ av_phrase_background_done() { # <agent_name> <where> <text>
 }
 
 av_phrase_needs_input() { # <agent_name> <where> <text>
-  printf '%s precisa de voce %s.' "$1" "$2"
+  printf '%s precisa de você %s.' "$1" "$2"
   [ -n "$3" ] && printf ' %s.' "$(printf '%s' "$3" | av_strip_trailing_punct)"
   return 0
 }
