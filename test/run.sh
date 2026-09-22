@@ -70,5 +70,40 @@ av_log "test-agent" "glob" "message with file*.txt"
 GLOB_LOG="$(tail -1 "$AV_STATE_DIR/events.log")"
 check_contains "helper: glob metachar * is literal" "file*.txt" "$GLOB_LOG"
 
+# --- speech cleanup ---------------------------------------------------------
+. "$AV_ROOT/lib/speech.sh"
+
+check "speech: strips markdown link, keeps label" \
+  "olha essa card e arruma" \
+  "$(printf 'olha [essa card](https://app.clickup.com/t/86a) e arruma' | av_clean_speech)"
+
+check "speech: strips bare URL" \
+  "veja isto" \
+  "$(printf 'veja https://exemplo.com/x isto' | av_clean_speech)"
+
+check "speech: underscore becomes a space" \
+  "handler de list pickup" \
+  "$(printf 'handler de list_pickup' | av_clean_speech)"
+
+check "speech: drops bracketed card id" \
+  "Selly PRO Davi Parra" \
+  "$(printf '[#196829] Selly PRO Davi Parra' | av_clean_speech)"
+
+check "speech: collapses doubled periods" \
+  "pronto. Foco: x" \
+  "$(printf 'pronto.. Foco: x' | av_clean_speech)"
+
+check "speech: newlines become spaces" \
+  "uma linha outra linha" \
+  "$(printf 'uma linha\noutra linha' | av_clean_speech)"
+
+check "speech: strips trailing punctuation" \
+  "travados" \
+  "$(printf 'travados.' | av_strip_trailing_punct)"
+
+check "speech: truncates to the limit" \
+  "aaaaaaaaaaaaaaaaaaaa" \
+  "$(AV_MAX_SPEECH_CHARS=20 av_clean_speech <<< 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
