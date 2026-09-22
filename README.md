@@ -64,6 +64,19 @@ Every firing is there, including the silent ones and why they were silent.
 Turn markers are deleted when the turn ends, so an empty state directory
 between turns is normal and proves nothing.
 
+## Rolling back
+
+The Claude Code cutover kept everything it replaced, on purpose, until this
+implementation is confirmed speaking on the real device:
+
+- `~/.claude/settings.json.bak-agent-voice` — the hooks config from before the
+  cutover. Restore it (copy back over `~/.claude/settings.json`) to point the
+  five hooks at the old script again instead of `bin/notify`.
+- `~/bin/claude-alexa-notify.sh.superseded` — the previous implementation
+  itself, a single self-contained script. Kept in place, not deleted, so
+  restoring the hooks config is enough on its own; nothing else needs
+  reinstalling.
+
 ## Language
 
 Code and docs are English. The spoken sentences are Portuguese and live only in

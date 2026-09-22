@@ -1,15 +1,18 @@
 # Per-session state, used by the core only. Keyed by agent and session so that
 # concurrent sessions — and concurrent agents — never clobber each other.
+#
+# av_hash (cksum-backed, with a pure-bash fallback) is defined in
+# lib/phrases.sh, which every caller of this file sources first.
 
 av_state_path() { # av_state_path <agent> <session_id>  -> path prefix
   local agent agent_safe agent_digest session session_safe session_digest
   agent_safe="$(printf '%s' "$1" | tr -cd 'a-zA-Z0-9_-')"
-  agent_digest="$(printf '%s' "$1" | cksum | cut -d' ' -f1)"
+  agent_digest="$(av_hash "$1")"
   [ -n "$agent_safe" ] || agent_safe="unknown"
   agent="${agent_safe}_${agent_digest}"
 
   session_safe="$(printf '%s' "$2" | tr -cd 'a-zA-Z0-9_-')"
-  session_digest="$(printf '%s' "$2" | cksum | cut -d' ' -f1)"
+  session_digest="$(av_hash "$2")"
   [ -n "$session_safe" ] || session_safe="unknown"
   session="${session_safe}_${session_digest}"
 

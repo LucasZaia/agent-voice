@@ -18,6 +18,17 @@ payload="$(cat 2>/dev/null)"
 
 field() { printf '%s' "$payload" | jq -r ".$1 // empty" 2>/dev/null; }
 
+# What background work "was": .agent_type is empty on every real SubagentStop /
+# TaskCompleted payload seen in production, so it alone leaves every
+# background_done content-free. Mirrors the fallback chain from the superseded
+# script (~/bin/claude-alexa-notify.sh.superseded, "task" case): try each field
+# in turn, first non-empty wins. The core (lib/core.sh) is the one that decides
+# what to do when all four are empty — this stays a pure translator.
+task_text() {
+  printf '%s' "$payload" \
+    | jq -r '.agent_type // .subagent_type // .description // .task_description // empty' 2>/dev/null
+}
+
 # Claude Code writes an AI-generated session title into the transcript as
 # {"type":"ai-title","aiTitle":"..."} and rewrites it as the topic shifts. Read
 # from the end: the newest one wins, and tac+grep costs ~3ms on a 3.5MB file
@@ -43,7 +54,7 @@ project() {
 case "$subcommand" in
   start)        type="turn_start";      text="$(field prompt)" ;;
   stop)         type="task_done";       text="" ;;
-  task)         type="background_done"; text="$(field agent_type)" ;;
+  task)         type="background_done"; text="$(task_text)" ;;
   notification) type="needs_input";     text="$(field message)" ;;
   *)            exit 0 ;;
 esac

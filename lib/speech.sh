@@ -16,6 +16,12 @@ av_clean_speech() { # stdin -> stdout
   text=$(tr '\n' ' ' \
     | sed -E 's/\[([^]]*)\]\([^)]*\)/\1/g
               s#https?://[^ ]*##g
+              s#/[^ ]*/[^ ]*##g
+              # ^ file paths, e.g. /home/user/repo/lib/core.sh. Must run AFTER
+              # the URL rule above: URLs are slash-heavy too, and by the time
+              # this line runs any http(s) URL is already gone, so it cannot
+              # eat a partial URL. Requires two slashes, same as the
+              # superseded script; a single leading "/etc" is left alone.
               s/\[#?[0-9]+\][[:space:]]*//g
               s/[][]//g
               s/[`*#>]//g

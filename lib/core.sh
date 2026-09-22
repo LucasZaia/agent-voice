@@ -8,14 +8,22 @@
 . "$AV_ROOT/lib/state.sh"
 
 av_speak() { # av_speak <agent> <session_id> <sentence>
-  local output
+  local output err rc reason
   av_cooldown_stamp "$1" "$2"
   for output in $AV_OUTPUTS; do
     if [ -x "$AV_ROOT/outputs/$output.sh" ]; then
-      if printf '%s' "$3" | "$AV_ROOT/outputs/$output.sh"; then
+      # Capture the output's stderr (not its stdout) so a FAILED line carries
+      # a reason. "container down", "token missing", "HTTP 401" and "unbound
+      # variable" must stay distinguishable from each other, and from a hook
+      # that simply chose to stay quiet.
+      err="$(printf '%s' "$3" | { "$AV_ROOT/outputs/$output.sh"; } 2>&1 1>/dev/null)"
+      rc=$?
+      if [ "$rc" -eq 0 ]; then
         av_log "$1" "$2" "spoke via $output: $3"
       else
-        av_log "$1" "$2" "FAILED via $output: $3"
+        reason="$(printf '%s' "$err" | head -n1 | cut -c1-120)"
+        [ -n "$reason" ] || reason="exit $rc, no stderr"
+        av_log "$1" "$2" "FAILED via $output ($reason): $3"
       fi
     else
       av_log "$1" "$2" "no such output: $output"
@@ -40,6 +48,14 @@ av_handle() { # canonical event JSON on stdin
   name="$(printf '%s' "$event" | jq -r '.session_name // empty' 2>/dev/null)"
   project="$(printf '%s' "$event" | jq -r '.project // empty' 2>/dev/null)"
   text="$(printf '%s' "$event" | jq -r '.text // empty' 2>/dev/null)"
+
+  # session_name and project come straight from adapter input (an AI-generated
+  # transcript title, a directory name) — never spoken-safe by construction.
+  # Adapters stay pure translators (see adapters/CONTRACT.md); cleaning what
+  # reaches the device is a core decision, so it happens here, once, for every
+  # agent, rather than being re-implemented (or forgotten) per adapter.
+  name="$(printf '%s' "$name" | av_clean_speech)"
+  project="$(printf '%s' "$project" | av_clean_speech)"
 
   agent_name="$(av_agent_name "$agent")"
   where="$(av_where "$session" "$name" "$project")"
@@ -71,6 +87,15 @@ av_handle() { # canonical event JSON on stdin
     background_done)
       if ! av_cooldown_ok "$agent" "$session"; then
         av_log "$agent" "$session" "silent (cooldown ${AV_COOLDOWN_SECONDS}s)"
+        return 0
+      fi
+      # RULING (I5): background_done fires roughly every 30s per session in
+      # production. Without a text fallback chain, .agent_type is empty on
+      # every real payload, so this used to speak a content-free sentence
+      # every cooldown window, forever. An announcement that says nothing is
+      # noise — stay silent and log why instead of speaking it.
+      if [ -z "$text" ]; then
+        av_log "$agent" "$session" "silent (background_done with no content)"
         return 0
       fi
       sentence="$(av_phrase_background_done "$agent_name" "$where" \
