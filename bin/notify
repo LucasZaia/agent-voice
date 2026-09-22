@@ -7,8 +7,16 @@
 # than one that does not exist.
 set -uo pipefail
 
-AV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve symlinks in the script path to find the real AV_ROOT
+_script_path="${BASH_SOURCE[0]}"
+if command -v readlink >/dev/null 2>&1; then
+  _script_path="$(readlink -f "$_script_path" 2>/dev/null)" || _script_path="$(cd "$(dirname "$_script_path")" && pwd)/$(basename "$_script_path")"
+else
+  _script_path="$(cd "$(dirname "$_script_path")" && pwd)/$(basename "$_script_path")"
+fi
+AV_ROOT="$(cd "$(dirname "$_script_path")/.." && pwd)"
 export AV_ROOT
+unset _script_path
 . "$AV_ROOT/config.sh"
 . "$AV_ROOT/lib/core.sh"
 

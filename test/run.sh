@@ -366,5 +366,47 @@ check "notify: garbage payload exits 0" "0" "$?"
 "$NOTIFY" </dev/null
 check "notify: no arguments exits 0" "0" "$?"
 
+# Symlink test: ensure AV_ROOT resolves through symlinks
+SYMLINK_DIR="$AV_ROOT/test/tmp/symlink-dir"
+mkdir -p "$SYMLINK_DIR"
+ln -sf "$NOTIFY" "$SYMLINK_DIR/notify"
+spoken_reset
+printf '{"session_id":"sym","cwd":"/a/proj","prompt":"via symlink"}' | "$SYMLINK_DIR/notify" claude-code start 2>/tmp/notify-symlink-err
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code sym).start"
+printf '{"session_id":"sym","cwd":"/a/proj"}' | "$SYMLINK_DIR/notify" claude-code stop 2>>/tmp/notify-symlink-err
+check_contains "notify: symlink works end to end" "Claude Code terminou" "$(spoken_last)"
+STDERR_SIZE=$(wc -c < /tmp/notify-symlink-err 2>/dev/null || echo 0)
+check "notify: symlink invocation stderr is empty" "0" "$STDERR_SIZE"
+rm -f /tmp/notify-symlink-err
+
+# Failing adapter test: adapter exits non-zero, notify still exits 0
+cat > "$AV_ROOT/adapters/fail-adapter.sh" <<'EOF'
+#!/bin/bash
+printf '{"type":"turn_start","agent":"fail-adapter","session_id":"f1"}'
+exit 42
+EOF
+chmod +x "$AV_ROOT/adapters/fail-adapter.sh"
+spoken_reset
+printf '{}' | "$NOTIFY" fail-adapter start 2>&1 >/dev/null
+check "notify: failing adapter exits 0" "0" "$?"
+rm "$AV_ROOT/adapters/fail-adapter.sh"
+
+# Failing output test: outputs fail, notify still exits 0
+mkdir -p "$AV_ROOT/test/tmp/outputs"
+cat > "$AV_ROOT/test/tmp/outputs/fail.sh" <<'EOF'
+#!/bin/bash
+echo "output: $*"
+exit 99
+EOF
+chmod +x "$AV_ROOT/test/tmp/outputs/fail.sh"
+export AV_OUTPUTS="fail"
+spoken_reset
+printf '{"session_id":"f2","cwd":"/a/proj","prompt":"test"}' | "$NOTIFY" claude-code start
+printf '%s' "$(( $(date +%s) - 240 ))" > "$(av_state_path claude-code f2).start"
+printf '{}' | "$NOTIFY" claude-code stop 2>&1 >/dev/null
+check "notify: failing output exits 0" "0" "$?"
+export AV_OUTPUTS="alexa"
+rm "$AV_ROOT/test/tmp/outputs/fail.sh"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
