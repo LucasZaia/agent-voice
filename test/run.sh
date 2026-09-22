@@ -121,5 +121,44 @@ check "speech: degrades gracefully without perl" \
   "hello world" \
   "$(PATH="$AV_ROOT/test/tmp/path-no-perl" bash -c "AV_ROOT='$AV_ROOT' AV_MAX_SPEECH_CHARS=90 && . \$AV_ROOT/lib/speech.sh && printf 'hello world' | av_clean_speech")"
 
+# --- phrases ----------------------------------------------------------------
+. "$AV_ROOT/lib/phrases.sh"
+
+check "phrases: known agent gets a display name" \
+  "Claude Code" "$(av_agent_name claude-code)"
+check "phrases: unknown agent falls back to its id" \
+  "codex" "$(av_agent_name codex)"
+
+check "phrases: session label is stable" \
+  "$(av_session_label abc123)" "$(av_session_label abc123)"
+
+check "phrases: where prefers the session name" \
+  "na sessao Home assistant repo" \
+  "$(av_where "sid1" "Home assistant repo" "home-assistant")"
+check "phrases: where falls back to label plus project" \
+  "na sessao $(av_session_label sid1), do projeto home-assistant" \
+  "$(av_where "sid1" "" "home-assistant")"
+check "phrases: where with neither name nor project" \
+  "na sessao $(av_session_label sid1)" \
+  "$(av_where "sid1" "" "")"
+
+check "phrases: one minute is singular" "cerca de um minuto" "$(av_duration_phrase 61)"
+check "phrases: several minutes" "cerca de 4 minutos" "$(av_duration_phrase 240)"
+
+check "phrases: task done with request" \
+  "Claude Code terminou na sessao X, depois de cerca de 4 minutos. Voce tinha pedido: criar o compose." \
+  "$(av_phrase_task_done "Claude Code" "na sessao X" "cerca de 4 minutos" "criar o compose")"
+check "phrases: task done without request" \
+  "Claude Code terminou na sessao X, depois de cerca de 4 minutos." \
+  "$(av_phrase_task_done "Claude Code" "na sessao X" "cerca de 4 minutos" "")"
+
+check "phrases: background done" \
+  "Claude Code terminou um trabalho em segundo plano na sessao X. Era: revisor." \
+  "$(av_phrase_background_done "Claude Code" "na sessao X" "revisor")"
+
+check "phrases: needs input" \
+  "Claude Code precisa de voce na sessao X. permission needed." \
+  "$(av_phrase_needs_input "Claude Code" "na sessao X" "permission needed")"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
