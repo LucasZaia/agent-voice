@@ -125,10 +125,10 @@ check "speech: removes stray brackets not in links or ids" \
 
 # I4: file paths are a regression against the superseded script, which
 # stripped them (`s#/[^ ]*/[^ ]*##g`). Read aloud, a path is unbearable:
-# "arruma o /home/lucas-zaia/softwares/agent-voice/lib/core.sh agora".
+# "arruma o /srv/projeto/lib/core.sh agora".
 check "speech: strips a file path" \
   "arruma o agora" \
-  "$(printf 'arruma o /home/lucas-zaia/softwares/agent-voice/lib/core.sh agora' | av_clean_speech)"
+  "$(printf 'arruma o /srv/projeto/lib/core.sh agora' | av_clean_speech)"
 
 check "speech: strips two file paths in one sentence" \
   "compara e" \
