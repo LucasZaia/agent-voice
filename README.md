@@ -17,13 +17,19 @@ your computer's own voice, or any command you like.
 Requires Node.js 20 or newer.
 
 ```bash
-npm install -g @lucaszaia/agent-voice
+npm install -g @lucas_zaia/agent-voice
 agent-voice setup
 ```
 
 `setup` finds your agents, adds its hooks to them (showing you exactly what it
 adds, and backing up the file first), asks how you want it to speak, and says a
 test sentence so you know it works.
+
+**Windows PowerShell** blocks npm's `.ps1` launchers by default ("execução de
+scripts foi desabilitada" / "running scripts is disabled"). Either allow them
+for your user once — `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` —
+or call `npm.cmd` and `agent-voice.cmd` instead. The agent hooks are not
+affected: they run `agent-voice.cmd`.
 
 Running from a checkout instead? Either `npm link` in the checkout (so
 `agent-voice` is on your PATH), or tell the hooks how to call it before
@@ -136,7 +142,7 @@ Run `agent-voice status` first — the reason is almost always in the log lines 
 
 ## Upgrading from the bash version
 
-1. `npm install -g @lucaszaia/agent-voice`
+1. `npm install -g @lucas_zaia/agent-voice`
 2. `agent-voice setup` — for the same Echo as before, pick `command` and enter
    `~/softwares/home-assistant/falar.sh -a {text}`, or pick `alexa` to talk to
    Home Assistant directly.

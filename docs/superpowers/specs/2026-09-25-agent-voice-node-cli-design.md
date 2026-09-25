@@ -10,7 +10,7 @@ with one command, and give it a management CLI so connecting agents and
 speakers no longer means hand-editing JSON, `chmod +x`, and exporting env vars.
 
 Success looks like: a person who has never seen the project runs
-`npm i -g @lucaszaia/agent-voice && agent-voice setup`, answers a few
+`npm i -g @lucas_zaia/agent-voice && agent-voice setup`, answers a few
 questions, hears a test sentence, and from then on their agent talks to them —
 on any of the three operating systems.
 
@@ -21,7 +21,7 @@ on any of the three operating systems.
 | Interface | Management CLI with an interactive `setup` wizard | Serves both daily use and first install |
 | Runtime | **Node ≥ 20, plain ESM JavaScript, zero runtime dependencies** | Portable; npm creates the right launcher per OS (`.cmd` shim on Windows). No build step |
 | Existing bash code | **Replaced** by a behaviour-identical port | Two implementations would drift |
-| Distribution | npm package `@lucaszaia/agent-voice`, command `agent-voice` | `agent-voice` is taken on npm by an unrelated project |
+| Distribution | npm package `@lucas_zaia/agent-voice`, command `agent-voice` | `agent-voice` is taken on npm by an unrelated project |
 | Outputs | Catalog of built-in types configured with parameters | Newcomers do not have a `falar.sh`; the tool must speak on its own |
 | Agents (v1) | `claude-code`, `codex`, and a generic `wrap` mode | Codex has lifecycle hooks with the same shape as Claude Code; `wrap` covers any other CLI |
 

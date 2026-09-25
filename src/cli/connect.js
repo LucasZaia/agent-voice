@@ -21,7 +21,7 @@ export async function connectAgent(adapter, { env, out, prompt, yes = false }) {
   const { changed, backup } = connectFile(file, adapter.name, adapter.hooks, { command });
   out(changed ? `Connected ${adapter.name}.${backup ? ` Backup: ${backup}` : ''}` : `${adapter.name} was already connected; nothing changed.`);
   if (command === 'agent-voice' && !findOnPath('agent-voice', env)) {
-    out('Warning: "agent-voice" is not on your PATH, so these hooks will not run. Install with "npm i -g @lucaszaia/agent-voice".');
+    out('Warning: "agent-voice" is not on your PATH, so these hooks will not run. Install with "npm i -g @lucas_zaia/agent-voice".');
   }
   for (const note of adapter.notes) out(`Note: ${note}`);
   return true;
