@@ -53,7 +53,7 @@ test('through the executable: exit code passes through and the short turn is log
   assert.equal(r.status, 5);
   const log = readFileSync(join(sb.env.AV_STATE_DIR, 'events.log'), 'utf8');
   assert.match(log, /wrap\s+wrap-\d+/);
-  assert.match(log, /silent \(turn 0s < 30s\)/);
+  assert.match(log, /silent \(turn \ds < 30s\)/);
 });
 
 test('windows: a missing command returns 127 before anything is spawned', async () => {

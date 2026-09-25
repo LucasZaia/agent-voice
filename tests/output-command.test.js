@@ -65,7 +65,8 @@ test('resolveOutputs: known instance speaks, missing one has no speak()', async 
   assert.ok(OUTPUT_TYPES.command);
 });
 
-test('something that exists but cannot be executed says so', async () => {
+// POSIX only: Windows has no execute bit, so a directory is simply not a command there.
+test('something that exists but cannot be executed says so', { skip: process.platform === 'win32' }, async () => {
   const sb = sandbox();
   await assert.rejects(run(sb.dir, []), { message: `not found or not executable: ${sb.dir}` });
 });
