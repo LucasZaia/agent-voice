@@ -5,6 +5,7 @@ import { runOutput, testActive } from './output.js';
 import { runConfig } from './config.js';
 import { runConnect, runDisconnect } from './connect.js';
 import { runStatus } from './status.js';
+import { runSetup } from './setup.js';
 
 const HELP = `Usage: agent-voice <command>
 
@@ -32,6 +33,7 @@ export function defaultIO(env = process.env) {
 
 // Each later task registers its command here: name → async (args, io) => exit code.
 const COMMANDS = {
+  setup: runSetup,
   wrap: (args, io) => runWrap(args, { env: io.env }),
   output: runOutput,
   config: async (args, io) => runConfig(args, io),
