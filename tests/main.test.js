@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { sandbox, ROOT, collector } from './helpers.js';
 import { main } from '../src/cli/main.js';
@@ -23,7 +23,12 @@ test('the executable runs and prints help', () => {
   assert.match(r.stdout, /Usage: agent-voice/);
 });
 
-test('a closed stdout (agent-voice help | head -c0) exits quietly', { skip: process.platform === 'win32' }, () => {
-  const r = spawnSync('sh', ['-c', `"${process.execPath}" "${join(ROOT, 'bin', 'agent-voice.js')}" help | head -c0`], { encoding: 'utf8' });
-  assert.equal(r.stderr, '');
+test('a closed stdout (agent-voice status | head) exits quietly', async () => {
+  const child = spawn(process.execPath, [join(ROOT, 'bin', 'agent-voice.js'), 'help'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdout.destroy();
+  let stderr = '';
+  child.stderr.on('data', (d) => { stderr += d; });
+  const code = await new Promise((resolve) => child.on('close', resolve));
+  assert.equal(stderr, '');
+  assert.equal(code, 0);
 });
