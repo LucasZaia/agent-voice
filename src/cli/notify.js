@@ -29,6 +29,8 @@ export function readStdin(stream = process.stdin, timeoutMs = 3000) {
   });
 }
 
+const errorLine = (e) => `error: ${String(e?.message ?? e).split(/\r?\n/)[0].slice(0, 200)}`;
+
 export async function runNotify(args, { input = '', env = process.env, write = (s) => process.stdout.write(s) } = {}) {
   const [agent = '', sub = ''] = args;
   const fallbackLog = (a, s, m) => log(stateDir(env), a, s, m);
@@ -50,7 +52,21 @@ export async function runNotify(args, { input = '', env = process.env, write = (
     if (!event) return 0;
     await handle(event, createContext(env));
   } catch (e) {
-    fallbackLog(agent || '?', '-', `error: ${String(e?.message ?? e).split(/\r?\n/)[0].slice(0, 200)}`);
+    fallbackLog(agent || '?', '-', errorLine(e));
   }
   return 0;
+}
+
+// The notify process must exit 0 even for failures no try/catch can see: an
+// agent that closes our stdout before we write (async EPIPE), or a stray
+// error from a callback. They are logged, like every other failure.
+export function guardNotifyProcess(args, env = process.env, proc = process) {
+  const agent = args[0] || '?';
+  const report = (e) => {
+    log(stateDir(env), agent, '-', errorLine(e));
+    proc.exitCode = 0;
+  };
+  proc.stdout.on('error', () => { /* the agent stopped listening; nothing to tell it */ });
+  proc.on('uncaughtException', report);
+  proc.on('unhandledRejection', report);
 }

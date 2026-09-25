@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { sandbox, ROOT, RECORDER } from './helpers.js';
 import { writeOutputInstance, saveConfig } from '../src/config.js';
 import { createState } from '../src/core/state.js';
-import { readStdin, runNotify } from '../src/cli/notify.js';
+import { readStdin, runNotify, guardNotifyProcess } from '../src/cli/notify.js';
 
 const BIN = join(ROOT, 'bin', 'agent-voice.js');
 const notify = (sb, args, input, extraEnv = {}) =>
@@ -91,4 +92,31 @@ test('runNotify swallows everything, even a throwing writer', async () => {
   const code = await runNotify(['codex', 'stop'], { input: '{}', env: sb.env, write: () => { throw new Error('EPIPE'); } });
   assert.equal(code, 0);
   assert.match(logOf(sb), /error: EPIPE/);
+});
+
+test('an agent that closes our stdout early gets exit 0 and no stack trace', async () => {
+  const sb = sandbox();
+  for (let i = 0; i < 5; i++) { // EPIPE timing varies; every run must be clean
+    const child = spawn(process.execPath, [BIN, 'notify', 'codex', 'stop'], { env: sb.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    child.stdout.destroy();
+    let stderr = '';
+    child.stderr.on('data', (d) => { stderr += d; });
+    child.stdin.end(JSON.stringify({ session_id: 'p', cwd: '/a' }));
+    const code = await new Promise((resolve) => child.on('close', resolve));
+    assert.equal(stderr, '');
+    assert.equal(code, 0);
+  }
+});
+
+test('notify guards log a stray error and keep exit code 0', () => {
+  const sb = sandbox();
+  const proc = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), exitCode: undefined });
+  guardNotifyProcess(['claude-code', 'stop'], sb.env, proc);
+  proc.stdout.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+  proc.emit('uncaughtException', new Error('boom\nstack'));
+  proc.emit('unhandledRejection', 'nope');
+  assert.equal(proc.exitCode, 0);
+  const text = logOf(sb);
+  assert.match(text, /claude-code\s+-\s+error: boom\n/);
+  assert.match(text, /error: nope/);
 });
