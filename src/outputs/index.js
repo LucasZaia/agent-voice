@@ -1,7 +1,8 @@
+import * as alexa from './alexa.js';
 import * as command from './command.js';
 import { readOutputInstance } from '../config.js';
 
-export const OUTPUT_TYPES = { command };
+export const OUTPUT_TYPES = { alexa, command };
 
 // Turns the active output names into speak() closures for the core. A name with
 // no usable instance gets speak: null, which the core logs as "no such output".
