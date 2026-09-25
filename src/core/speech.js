@@ -5,6 +5,8 @@ const EMOJI = /[\u{2190}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{F
 export function cleanSpeech(input, max) {
   const text = (typeof input === 'string' ? input : '')
     .replace(/\n/g, ' ')
+    // Tags from agent-injected markup (<task-id>, <br/>): keep the text, drop the tag.
+    .replace(/<\/?[A-Za-z][\w-]*(\s[^<>]*)?\/?>/g, ' ')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/https?:\/\/[^ ]*/g, '')
     // File paths. Must run after the URL rule: by now every URL is gone, so this

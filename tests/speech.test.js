@@ -35,3 +35,8 @@ test('speech: strips trailing punctuation', () => {
   assert.equal(stripTrailingPunct('travados.'), 'travados');
   assert.equal(stripTrailingPunct('ok !:; - '), 'ok');
 });
+
+test('speech: XML-like tags are dropped, their text kept', () => {
+  assert.equal(cleanSpeech('<task-id>b670</task-id> <b>ok</b> <br/> fim', 90), 'b670 ok fim');
+  assert.equal(cleanSpeech('a < b e c > d', 90), 'a < b e c d');
+});

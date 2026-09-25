@@ -22,3 +22,8 @@ test('the executable runs and prints help', () => {
   assert.equal(r.status, 0);
   assert.match(r.stdout, /Usage: agent-voice/);
 });
+
+test('a closed stdout (agent-voice help | head -c0) exits quietly', { skip: process.platform === 'win32' }, () => {
+  const r = spawnSync('sh', ['-c', `"${process.execPath}" "${join(ROOT, 'bin', 'agent-voice.js')}" help | head -c0`], { encoding: 'utf8' });
+  assert.equal(r.stderr, '');
+});

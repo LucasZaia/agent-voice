@@ -117,3 +117,10 @@ test('windows: the home dir is recognised whatever the case or separators', () =
   assert.equal(projectOf('C:\\Users\\u\\Code\\Proj', 'C:\\Users\\u', 'win32'), 'Proj');
   assert.equal(projectOf('/home/U', '/home/u', 'linux'), 'U');
 });
+
+test('system-injected blocks are not the request: a task-notification turn carries no text', () => {
+  const note = '<task-notification>\n<task-id>b670</task-id>\n<status>completed</status>\n</task-notification>';
+  assert.equal(cc.translate('start', { ...payload, prompt: note }, home).text, '');
+  assert.equal(cc.translate('start', { ...payload, prompt: `<system-reminder>x</system-reminder>\ncriar o compose` }, home).text, 'criar o compose');
+  assert.equal(cc.translate('start', { ...payload, prompt: 'compare <a> e <b>' }, home).text, 'compare <a> e <b>');
+});

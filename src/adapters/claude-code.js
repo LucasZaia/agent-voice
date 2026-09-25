@@ -76,8 +76,13 @@ export function sessionName(transcriptPath, chunkSize = 64 * 1024) {
 // turn; the core decides what to do when all are empty.
 const taskText = (p) => str(p.agent_type) || str(p.subagent_type) || str(p.description) || str(p.task_description);
 
+// Claude Code submits some turns itself — a background task finishing arrives as
+// a <task-notification> "prompt". Those blocks are not what the user asked for.
+const SYSTEM_BLOCKS = /<(task-notification|system-reminder)>[\s\S]*?<\/\1>/g;
+const requestText = (p) => str(p.prompt).replace(SYSTEM_BLOCKS, '').trim();
+
 const MAPPING = {
-  start: ['turn_start', (p) => str(p.prompt)],
+  start: ['turn_start', requestText],
   stop: ['task_done', () => ''],
   task: ['background_done', taskText],
   notification: ['needs_input', (p) => str(p.message)],
