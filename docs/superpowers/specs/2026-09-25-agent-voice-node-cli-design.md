@@ -97,9 +97,9 @@ Types in v1:
 
 | Type | How it speaks | Wizard asks |
 |---|---|---|
-| `alexa` | `POST {url}/api/services/notify/send_message` with `{entity_id, message}`, bearer token, 20s timeout | URL, token (tested against `GET /api/`), then picks from `notify.*` entities listed by `GET /api/states` |
+| `alexa` | `POST {url}/api/services/notify/send_message` with `{entity_id, message}`, bearer token, 15s timeout (every output gets at most 15s; async hooks get 60s) | URL, token (tested against `GET /api/`), then picks from `notify.*` entities listed by `GET /api/states` |
 | `local` | macOS `say`; Windows PowerShell `System.Speech.Synthesis.SpeechSynthesizer`; Linux `spd-say`, else `espeak-ng`, else `espeak` | Voice — pt-BR preselected when the backend has one |
-| `command` | Runs a command; `{text}` in its args is replaced by the sentence, otherwise the sentence goes on stdin. No shell — args are an array | The command line |
+| `command` | Runs a command; `{text}` in its args is replaced by the sentence, otherwise the sentence goes on stdin. No shell — args are an array (on Windows, `.cmd`/`.bat` go through `cmd.exe /d /s /c` with every argument quoted and caret-escaped; see `src/spawn-command.js`). A leading `~`, `$HOME` or `%USERPROFILE%` is the home dir | The command line |
 
 Every `speak()` resolves or throws an `Error` whose message is the reason; the
 core logs `spoke via <name>` or `FAILED via <name> (<reason>)` exactly as today.

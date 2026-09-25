@@ -25,6 +25,17 @@ agent-voice setup
 adds, and backing up the file first), asks how you want it to speak, and says a
 test sentence so you know it works.
 
+Running from a checkout instead? Either `npm link` in the checkout (so
+`agent-voice` is on your PATH), or tell the hooks how to call it before
+connecting:
+
+```bash
+AV_HOOK_COMMAND="node /path/to/agent-voice/bin/agent-voice.js" agent-voice connect claude-code
+```
+
+`AV_HOOK_COMMAND` is the command written into the agent's hooks (default
+`agent-voice`); it is read when you run `setup` or `connect`.
+
 ## Why
 
 You ask an agent for something that takes a while and stop watching. Then
@@ -71,7 +82,13 @@ agent-voice test
 | `command` | Runs any command; `{text}` in it is replaced by the sentence, otherwise the sentence goes to stdin | The command |
 
 You can have several, e.g. `alexa-sala` and `alexa-escritorio`; every enabled
-output speaks.
+output speaks, each given up to 15 seconds.
+
+A `command` never goes through a shell: arguments are passed as typed, and a
+leading `~`, `$HOME` or `%USERPROFILE%` means your home directory. On Windows a
+`.cmd`/`.bat` speaker is run through `cmd.exe` with every argument quoted and
+escaped, so the sentence can never run anything; a batch file sees it with
+`^` escapes, which disappear when it passes `%*` or `%1` on to another program.
 
 ## Agents
 

@@ -9,5 +9,6 @@
   "scripts": { "test": "node --test" },
   "repository": { "type": "git", "url": "git+https://github.com/LucasZaia/agent-voice.git" },
   "keywords": ["claude-code", "codex", "alexa", "home-assistant", "tts", "notifications"],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": { "access": "public" }
 }

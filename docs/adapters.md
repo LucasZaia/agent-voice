@@ -10,7 +10,7 @@ core owns all of that, so every agent gets the same behaviour and the same fixes
 | Export | What it is |
 |---|---|
 | `name` | The agent id, e.g. `"codex"`. Used in hook commands, state paths and the log |
-| `hooks` | `[{ event, sub, async?, timeout }]` — which agent events call `agent-voice notify <name> <sub>` |
+| `hooks` | `[{ event, sub, async?, timeout }]` — which agent events call `agent-voice notify <name> <sub>`. Give hooks that can speak `timeout: 60`: each output gets up to 15s, one after another, and the FAILED line must reach the log before the agent kills the hook |
 | `notes` | Strings printed after `connect` (e.g. "trust the hooks in /hooks") |
 | `configFile(env, home)` | Path of the agent's JSON config that holds hooks |
 | `detect(env, home)` | Whether the agent is installed here |
