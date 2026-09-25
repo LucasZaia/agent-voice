@@ -6,3 +6,6 @@ test/tmp/
 # backstop against an interrupt that skips the trap (e.g. SIGKILL).
 /adapters/fail-adapter.sh
 /outputs/failout.sh
+
+node_modules/
+*.tgz
