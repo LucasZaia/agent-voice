@@ -10,8 +10,8 @@ export const name = 'codex';
 
 export const hooks = [
   { event: 'UserPromptSubmit', sub: 'start', timeout: 5 },
-  { event: 'Stop', sub: 'stop', async: true, timeout: 20 },
-  { event: 'PermissionRequest', sub: 'permission', async: true, timeout: 20 },
+  { event: 'Stop', sub: 'stop', async: true, timeout: 60 },
+  { event: 'PermissionRequest', sub: 'permission', async: true, timeout: 60 },
 ];
 
 export const notes = ['Codex skips hooks it has not trusted yet: open Codex and run /hooks to review and trust them.'];

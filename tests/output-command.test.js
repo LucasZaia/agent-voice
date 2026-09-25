@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sandbox, RECORDER, scriptedPrompter } from './helpers.js';
 import * as command from '../src/outputs/command.js';
-import { run } from '../src/outputs/run.js';
+import { run, SPEAK_TIMEOUT_MS } from '../src/outputs/run.js';
 import { OUTPUT_TYPES, resolveOutputs } from '../src/outputs/index.js';
 import { writeOutputInstance } from '../src/config.js';
 
@@ -66,4 +66,23 @@ test('resolveOutputs: known instance speaks, missing one has no speak()', async 
 test('something that exists but cannot be executed says so', async () => {
   const sb = sandbox();
   await assert.rejects(run(sb.dir, []), { message: `not found or not executable: ${sb.dir}` });
+});
+
+test('a speaker that leaves audio playing in the background is done when it exits', async () => {
+  // The grandchild inherits our pipes and outlives its parent, like `sh -c "play x &"`.
+  const bg = "require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], { stdio: 'inherit' }).unref()";
+  const started = Date.now();
+  await run(process.execPath, ['-e', bg], { timeoutMs: 2000 });
+  assert.ok(Date.now() - started < 1500, `took ${Date.now() - started}ms`);
+});
+
+test('a failing speaker still reports its stderr when it exits', async () => {
+  await assert.rejects(run(process.execPath, ['-e', "process.stderr.write('no voice\\n'); process.exit(2)"]), { message: 'no voice' });
+});
+
+test('a speaker gets 15s by default, well inside the hook budget', async () => {
+  assert.equal(SPEAK_TIMEOUT_MS, 15000);
+  const calls = [];
+  await command.speak('x', { type: 'command', argv: ['speaker'] }, { run: async (...a) => { calls.push(a); } });
+  assert.equal(calls[0][2].timeoutMs, SPEAK_TIMEOUT_MS);
 });

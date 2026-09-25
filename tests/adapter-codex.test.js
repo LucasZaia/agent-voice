@@ -42,5 +42,7 @@ test('config file follows CODEX_HOME', () => {
 test('hooks and the trust note', () => {
   assert.deepEqual(codex.hooks.map((h) => `${h.event}:${h.sub}`), ['UserPromptSubmit:start', 'Stop:stop', 'PermissionRequest:permission']);
   assert.match(codex.notes.join(' '), /\/hooks/);
+  assert.equal(codex.hooks[0].timeout, 5);
+  for (const h of codex.hooks.slice(1)) assert.deepEqual([h.async, h.timeout], [true, 60], h.event);
   assert.equal(ADAPTERS.codex, codex);
 });

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { SPEAK_TIMEOUT_MS } from '../src/outputs/run.js';
 import * as local from '../src/outputs/local.js';
 import { OUTPUT_TYPES } from '../src/outputs/index.js';
 import { scriptedPrompter } from './helpers.js';
@@ -61,3 +62,10 @@ test('questions keep the suggested voice on Enter', async () => {
 });
 
 test('local is registered', () => assert.equal(OUTPUT_TYPES.local, local));
+
+test('local speech gets the same 15s as every output', async () => {
+  const calls = [];
+  await local.speak('x', { backend: 'espeak', voice: '' }, { run: async (...a) => { calls.push(a); } });
+  assert.deepEqual(calls[0].slice(0, 2), ['espeak', ['-v', 'pt-br', 'x']]);
+  assert.equal(calls[0][2].timeoutMs, SPEAK_TIMEOUT_MS);
+});

@@ -1,6 +1,6 @@
 // The computer's own voice: `say` on macOS, SAPI through PowerShell on Windows,
 // speech-dispatcher or eSpeak on Linux.
-import { run as runProcess } from './run.js';
+import { run as runProcess, SPEAK_TIMEOUT_MS } from './run.js';
 import { findOnPath } from '../platform.js';
 
 export const type = 'local';
@@ -82,5 +82,6 @@ export async function questions(prompt, current = {}, deps = {}) {
 
 export async function speak(sentence, conf, deps = {}) {
   const { cmd, args, input, env } = commandFor(conf.backend, sentence, conf.voice);
-  await runProcess(cmd, args, { input, env, spawn: deps.spawn, timeoutMs: deps.timeoutMs ?? 60000 });
+  const run = deps.run ?? runProcess;
+  await run(cmd, args, { input, env, spawn: deps.spawn, timeoutMs: deps.timeoutMs ?? SPEAK_TIMEOUT_MS });
 }

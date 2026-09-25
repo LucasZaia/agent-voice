@@ -104,3 +104,8 @@ test('describe never shows the token', () => {
 });
 
 test('alexa is registered', () => assert.equal(OUTPUT_TYPES.alexa, alexa));
+
+test('Home Assistant gets 15s by default, well inside the hook budget', async () => {
+  const fetch = async () => { throw Object.assign(new Error('late'), { name: 'TimeoutError' }); };
+  await assert.rejects(alexa.speak('x', { type: 'alexa', url: 'http://h', token: 't', entity: 'notify.e' }, { fetch }), /within 15s/);
+});

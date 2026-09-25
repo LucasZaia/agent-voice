@@ -1,5 +1,7 @@
 // Makes an Echo speak through Home Assistant's notify.send_message service —
 // the same call the old falar.sh made, without needing that script.
+import { SPEAK_TIMEOUT_MS } from './run.js';
+
 export const type = 'alexa';
 
 const base = (url) => String(url ?? '').replace(/\/+$/, '');
@@ -8,7 +10,7 @@ export const describe = (conf) => `${conf.entity} @ ${base(conf.url)}`;
 
 async function call(conf, path, init = {}, deps = {}) {
   const doFetch = deps.fetch ?? fetch;
-  const timeoutMs = deps.timeoutMs ?? 20000;
+  const timeoutMs = deps.timeoutMs ?? SPEAK_TIMEOUT_MS;
   let res;
   try {
     res = await doFetch(`${base(conf.url)}${path}`, {

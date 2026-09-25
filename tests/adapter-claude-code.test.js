@@ -92,6 +92,9 @@ test('hooks match the README wiring and nothing is written back to Claude Code',
     'UserPromptSubmit:start', 'Stop:stop', 'SubagentStop:task', 'TaskCompleted:task', 'Notification:notification',
   ]);
   assert.equal(cc.hooks[0].async, undefined);
+  assert.equal(cc.hooks[0].timeout, 5);
+  // Room for three outputs at 15s each, so a FAILED line is logged before the agent kills the hook.
+  for (const h of cc.hooks.slice(1)) assert.deepEqual([h.async, h.timeout], [true, 60], h.event);
   assert.equal(cc.hookReply('stop'), '');
   assert.equal(ADAPTERS['claude-code'], cc);
 });

@@ -10,10 +10,10 @@ export const name = 'claude-code';
 
 export const hooks = [
   { event: 'UserPromptSubmit', sub: 'start', timeout: 5 },
-  { event: 'Stop', sub: 'stop', async: true, timeout: 20 },
-  { event: 'SubagentStop', sub: 'task', async: true, timeout: 20 },
-  { event: 'TaskCompleted', sub: 'task', async: true, timeout: 20 },
-  { event: 'Notification', sub: 'notification', async: true, timeout: 20 },
+  { event: 'Stop', sub: 'stop', async: true, timeout: 60 },
+  { event: 'SubagentStop', sub: 'task', async: true, timeout: 60 },
+  { event: 'TaskCompleted', sub: 'task', async: true, timeout: 60 },
+  { event: 'Notification', sub: 'notification', async: true, timeout: 60 },
 ];
 
 export const notes = [];

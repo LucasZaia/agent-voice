@@ -31,7 +31,7 @@ test('missing file is created with our hooks', () => {
   const r = h.connectFile(file, 'claude-code', ccHooks, { command: 'agent-voice', now: at });
   assert.deepEqual(r, { changed: true, backup: null });
   const s = JSON.parse(readFileSync(file, 'utf8'));
-  assert.deepEqual(s.hooks.Stop, [{ hooks: [{ type: 'command', command: 'agent-voice notify claude-code stop', async: true, timeout: 20 }] }]);
+  assert.deepEqual(s.hooks.Stop, [{ hooks: [{ type: 'command', command: 'agent-voice notify claude-code stop', async: true, timeout: 60 }] }]);
   assert.deepEqual(s.hooks.UserPromptSubmit, [{ hooks: [{ type: 'command', command: 'agent-voice notify claude-code start', timeout: 5 }] }]);
   assert.equal(h.hookStatus(s, 'claude-code', ccHooks), 'connected');
 });

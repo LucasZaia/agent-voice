@@ -1,6 +1,6 @@
 // Runs any command that makes noise. {text} in its arguments is replaced by the
 // sentence; without {text}, the sentence goes on stdin. No shell is involved.
-import { run } from './run.js';
+import { run as runProcess, SPEAK_TIMEOUT_MS } from './run.js';
 
 export const type = 'command';
 
@@ -47,5 +47,6 @@ export async function speak(sentence, conf, deps = {}) {
   const [cmd, ...rest] = conf.argv;
   const placeholder = rest.some((a) => a.includes('{text}'));
   const args = rest.map((a) => a.replaceAll('{text}', sentence));
-  await run(cmd, args, { input: placeholder ? '' : sentence, spawn: deps.spawn, timeoutMs: deps.timeoutMs });
+  const run = deps.run ?? runProcess;
+  await run(cmd, args, { input: placeholder ? '' : sentence, spawn: deps.spawn, timeoutMs: deps.timeoutMs ?? SPEAK_TIMEOUT_MS });
 }
