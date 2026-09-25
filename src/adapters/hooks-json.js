@@ -2,7 +2,10 @@
 // settings.json, Codex's hooks.json — same shape). Rules: never touch foreign
 // hooks, never duplicate ours, back up before writing, and on anything
 // unexpected abort without writing a byte.
-import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync } from 'node:fs';
+import {
+  readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync, renameSync, rmSync, statSync, chmodSync, realpathSync,
+  constants,
+} from 'node:fs';
 import { dirname } from 'node:path';
 
 export const hookCommand = (env = process.env) => env.AV_HOOK_COMMAND || 'agent-voice';
@@ -80,7 +83,8 @@ export function hookStatus(settings, agent, defs, file) {
 
 function readSettings(file) {
   if (!existsSync(file)) return { settings: {}, existed: false };
-  const raw = readFileSync(file, 'utf8');
+  // Windows editors like to start UTF-8 files with a BOM; JSON.parse does not.
+  const raw = readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
   if (raw.trim() === '') return { settings: {}, existed: true };
   let settings;
   try {
@@ -95,15 +99,42 @@ function readSettings(file) {
 const pad2 = (n) => String(n).padStart(2, '0');
 const stamp = (d) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
 
+// Never overwrites an earlier backup: connect and disconnect in the same
+// second must both keep theirs.
+function backupOf(file, now) {
+  const base = `${file}.bak-${stamp(now)}`;
+  for (let i = 1; ; i++) {
+    const backup = i === 1 ? base : `${base}-${i}`;
+    try {
+      copyFileSync(file, backup, constants.COPYFILE_EXCL);
+      return backup;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+    }
+  }
+}
+
+// Written to a temp file and renamed over the original, so a crash or a full
+// disk never leaves the agent with half a settings file. A symlinked file
+// (dotfile repos) is written at its target and stays a symlink.
+function replaceFile(file, text) {
+  const target = existsSync(file) ? realpathSync(file) : file;
+  const tmp = `${target}.tmp-${process.pid}`;
+  try {
+    writeFileSync(tmp, text);
+    try { chmodSync(tmp, statSync(target).mode & 0o7777); } catch { /* new file, or no modes here */ }
+    renameSync(tmp, target);
+  } catch (e) {
+    rmSync(tmp, { force: true });
+    throw e;
+  }
+}
+
 function writeSettings(file, existed, before, next, now) {
   if (JSON.stringify(before) === JSON.stringify(next)) return { changed: false, backup: null };
   mkdirSync(dirname(file), { recursive: true });
-  let backup = null;
-  if (existed) {
-    backup = `${file}.bak-${stamp(now)}`;
-    copyFileSync(file, backup);
-  }
-  writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`);
+  const backup = existed ? backupOf(file, now) : null;
+  replaceFile(file, `${JSON.stringify(next, null, 2)}\n`);
   return { changed: true, backup };
 }
 

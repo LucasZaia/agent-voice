@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, readdirSync, chmodSync, statSync, lstatSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as h from '../src/adapters/hooks-json.js';
@@ -127,4 +127,42 @@ test('status: partial and not connected', () => {
 test('hookCommand honours AV_HOOK_COMMAND', () => {
   assert.equal(h.hookCommand({}), 'agent-voice');
   assert.equal(h.hookCommand({ AV_HOOK_COMMAND: 'node /x/bin/agent-voice.js' }), 'node /x/bin/agent-voice.js');
+});
+
+test('backups made in the same second never overwrite each other', () => {
+  const original = JSON.stringify({ model: 'opus' });
+  const { dir, file } = tmpFile(original);
+  const first = h.connectFile(file, 'claude-code', ccHooks, { command: 'agent-voice', now: at });
+  const second = h.disconnectFile(file, 'claude-code', { now: at });
+  assert.equal(first.backup, `${file}.bak-20260925-100000`);
+  assert.equal(second.backup, `${file}.bak-20260925-100000-2`);
+  assert.equal(readFileSync(first.backup, 'utf8'), original);
+  assert.equal(readdirSync(dir).length, 3);
+});
+
+test('the file is replaced by rename, keeping its mode and leaving no temp file', { skip: process.platform === 'win32' }, () => {
+  const { dir, file } = tmpFile('{}');
+  chmodSync(file, 0o600);
+  const before = statSync(file).ino;
+  h.connectFile(file, 'claude-code', ccHooks, { command: 'agent-voice', now: at });
+  assert.notEqual(statSync(file).ino, before);
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  assert.deepEqual(readdirSync(dir).sort(), ['settings.json', 'settings.json.bak-20260925-100000']);
+});
+
+test('a symlinked settings file stays a symlink; its target is updated', { skip: process.platform === 'win32' }, () => {
+  const { dir, file: target } = tmpFile('{"model":"opus"}');
+  const link = join(dir, 'link.json');
+  symlinkSync(target, link);
+  h.connectFile(link, 'claude-code', ccHooks, { command: 'agent-voice', now: at });
+  assert.ok(lstatSync(link).isSymbolicLink());
+  assert.equal(h.fileStatus(target, 'claude-code', ccHooks), 'connected');
+});
+
+test('a UTF-8 BOM (Windows editors) is accepted', () => {
+  const { file } = tmpFile('﻿{"model":"opus"}');
+  h.connectFile(file, 'claude-code', ccHooks, { command: 'agent-voice', now: at });
+  const s = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(s.model, 'opus');
+  assert.equal(h.fileStatus(file, 'claude-code', ccHooks), 'connected');
 });

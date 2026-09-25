@@ -24,7 +24,7 @@ function readJson(file) {
     throw e;
   }
   try {
-    return JSON.parse(text);
+    return JSON.parse(text.replace(/^\uFEFF/, ''));
   } catch (e) {
     throw new Error(`${file}: invalid JSON (${e.message})`);
   }

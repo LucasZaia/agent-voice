@@ -82,3 +82,12 @@ test('written JSON is pretty-printed with a trailing newline', () => {
   c.saveConfig({ minSeconds: 45 }, env);
   assert.equal(readFileSync(join(env.AV_CONFIG_DIR, 'config.json'), 'utf8'), '{\n  "minSeconds": 45\n}\n');
 });
+
+test('a UTF-8 BOM in config.json or an instance file is accepted', () => {
+  const { env } = sandbox();
+  mkdirSync(join(env.AV_CONFIG_DIR, 'outputs'), { recursive: true });
+  writeFileSync(join(env.AV_CONFIG_DIR, 'config.json'), '﻿{"minSeconds": 45}');
+  writeFileSync(join(env.AV_CONFIG_DIR, 'outputs', 'x.json'), '﻿{"type": "command", "argv": ["say"]}');
+  assert.equal(c.loadConfig(env).minSeconds, 45);
+  assert.equal(c.readOutputInstance('x', env).type, 'command');
+});
