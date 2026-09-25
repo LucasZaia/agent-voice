@@ -14,7 +14,7 @@ long task, or stops to wait for your permission, a speaker says so out loud:
 > 🔊 *"Codex precisa de você na sessão azul, do projeto api, para usar o Bash."*
 
 It works on macOS, Windows and Linux. It can speak through an Amazon Echo (via
-Home Assistant), your computer's own voice, or any command you choose. It has
+[Home Assistant](https://www.home-assistant.io/)), your computer's own voice, or any command you choose. It has
 no dependencies and needs only Node.js.
 
 ---
@@ -64,7 +64,7 @@ Agents
   claude-code  connected
   codex        not installed
 Outputs (* = enabled)
-  * echo             alexa    notify.echo_dot_announce @ http://localhost:8123
+  * echo             alexa    notify.echo_dot_announce @ http://homeassistant.local:8123
 Settings
   minSeconds=30
   cooldownSeconds=120
@@ -134,12 +134,13 @@ agent-voice output remove <name>
 
 You need:
 
-1. **Home Assistant**, reachable from this machine (e.g. `http://localhost:8123`).
+1. **[Home Assistant](https://www.home-assistant.io/installation/)**, reachable over the network from the
+   machine where your agent runs (by default `http://homeassistant.local:8123`).
 2. The **[Alexa Media Player](https://github.com/alandtse/alexa_media_player)**
    integration, which creates `notify.<device>_speak` and
    `notify.<device>_announce` entities for each Echo.
-3. A **long-lived access token**: Home Assistant → your profile → *Security* →
-   *Long-lived access tokens* → *Create token*.
+3. A **[long-lived access token](https://www.home-assistant.io/docs/authentication/#your-account-profile)**:
+   Home Assistant → your profile → *Security* → *Long-lived access tokens* → *Create token*.
 
 ```bash
 agent-voice output add alexa
