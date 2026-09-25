@@ -3,6 +3,8 @@ import { createPrompter } from './prompt.js';
 import { runWrap } from './wrap.js';
 import { runOutput, testActive } from './output.js';
 import { runConfig } from './config.js';
+import { runConnect, runDisconnect } from './connect.js';
+import { runStatus } from './status.js';
 
 const HELP = `Usage: agent-voice <command>
 
@@ -34,6 +36,9 @@ const COMMANDS = {
   output: runOutput,
   config: async (args, io) => runConfig(args, io),
   test: async (args, io) => testActive(io),
+  connect: runConnect,
+  disconnect: runDisconnect,
+  status: runStatus,
 };
 
 export async function main(argv, io = defaultIO()) {
