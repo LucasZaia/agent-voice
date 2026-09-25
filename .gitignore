@@ -1,11 +1,3 @@
 *.log
-test/tmp/
-
-# test/run.sh writes these fixtures into product directories (av_speak and
-# bin/notify only look there) and traps cleanup on EXIT/INT/TERM; this is a
-# backstop against an interrupt that skips the trap (e.g. SIGKILL).
-/adapters/fail-adapter.sh
-/outputs/failout.sh
-
 node_modules/
 *.tgz
