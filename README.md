@@ -1,134 +1,96 @@
 # agent-voice
 
-**Make your coding agent talk to you.** When Claude Code finishes a long task —
-or gets stuck waiting for your permission — a smart speaker says so out loud:
+[![npm](https://img.shields.io/npm/v/@lucas_zaia/agent-voice)](https://www.npmjs.com/package/@lucas_zaia/agent-voice)
+[![test](https://github.com/LucasZaia/agent-voice/actions/workflows/test.yml/badge.svg)](https://github.com/LucasZaia/agent-voice/actions/workflows/test.yml)
+![node](https://img.shields.io/node/v/@lucas_zaia/agent-voice)
+![license](https://img.shields.io/npm/l/@lucas_zaia/agent-voice)
 
-> *"Claude Code terminou na sessão Home assistant repo, depois de cerca de 4
+**Make your coding agent talk to you.** When Claude Code or Codex finishes a
+long task, or stops to wait for your permission, a speaker says so out loud:
+
+> 🔊 *"Claude Code terminou na sessão Home assistant repo, depois de cerca de 4
 > minutos. Você tinha pedido: criar o docker compose."*
+>
+> 🔊 *"Codex precisa de você na sessão azul, do projeto api, para usar o Bash."*
 
-> *"Claude Code precisa de você na sessão agent-voice, para usar o Bash."*
-
----
-
-## The idea
-
-You ask an agent to do something that takes a while, and you stop watching. You
-switch to another window, read something, take a call. Two things then go wrong:
-
-1. **The work finishes and just sits there.** You come back five minutes later
-   than you needed to, every time.
-2. **Worse: it stopped early.** It hit a permission prompt thirty seconds in and
-   has been waiting for you ever since, while you thought it was working.
-
-A popup notification does not fix this, because it appears in the window you
-already stopped looking at. Audio does — but only if it follows two rules:
-
-- **Say something specific.** "Task complete" is useless when three sessions are
-  running. It has to say *which* session, and *what you had asked for*.
-- **Stay quiet most of the time.** A notifier that speaks after every reply gets
-  muted on day one.
-
-agent-voice is that: a small bash program that hooks into your agent, decides
-whether an event is actually worth interrupting you for, builds a sentence in
-plain language, and sends it to a speaker.
-
-It ships with an adapter for **Claude Code** and an output for **Alexa** (via
-Home Assistant), but both ends are pluggable — see *Using another agent* and
-*Using another speaker* below.
+It works on macOS, Windows and Linux. It can speak through an Amazon Echo (via
+Home Assistant), your computer's own voice, or any command you choose. It has
+no dependencies and needs only Node.js.
 
 ---
 
-## How it works
+## Contents
 
-Three pieces, in a line:
-
-```
-your agent  ──>  adapter  ──>  core  ──>  output  ──>  speaker
-                translate     decide      speak
-```
-
-| Piece | Job |
-|---|---|
-| **Adapter** (`adapters/claude-code.sh`) | Knows one agent. Turns its native hook payload into a standard JSON event. Decides nothing. |
-| **Core** (`lib/core.sh`) | Knows no agent. Decides whether to speak, keeps per-session state, builds the sentence. |
-| **Output** (`outputs/alexa.sh`) | Takes a finished sentence and makes a device say it. |
-
-Everything enters through one command, `bin/notify`, which is what your hooks
-call.
+- [Quick start](#quick-start)
+- [Why](#why)
+- [When it speaks](#when-it-speaks)
+- [Speakers](#speakers): [Echo / Alexa](#echo--alexa-via-home-assistant) · [Computer voice](#your-computers-voice) · [Any command](#any-command)
+- [Agents](#agents)
+- [Tuning](#tuning)
+- [Changing what it says](#changing-what-it-says)
+- [Commands](#commands)
+- [Windows notes](#windows-notes)
+- [Troubleshooting](#troubleshooting)
+- [How it works](#how-it-works)
+- [Development](#development)
 
 ---
 
-## Install
+## Quick start
 
-### 1. Get the code and check it runs
-
-```bash
-git clone https://github.com/LucasZaia/agent-voice.git
-cd agent-voice
-./test/run.sh
-```
-
-You should see `114 passed, 0 failed`. Requirements are `bash` and `jq`;
-`perl` and `cksum` are used if present and skipped if not.
-
-### 2. Tell it how to speak
-
-`AV_SPEAK_CMD` is any command that accepts `-a "<sentence>"` and says it out
-loud. The default points at a Home Assistant script, but anything works:
+You need Node.js 20 or newer.
 
 ```bash
-# quick way to try it with no smart speaker at all
-export AV_SPEAK_CMD=/usr/bin/espeak-wrapper     # see "Using another speaker"
+npm install -g @lucas_zaia/agent-voice
+agent-voice setup
 ```
 
-### 3. Check that a sentence actually comes out
+`setup` takes about a minute:
+
+1. **Finds your agents** (Claude Code, Codex) and shows the exact hooks it will
+   add. The config file is backed up before anything is written.
+2. **Asks how to speak**: Echo, your computer's voice, or a command.
+3. **Speaks a test sentence** and asks whether you heard it. If you didn't, it
+   removes that speaker and lets you try another.
+
+To check everything afterwards:
 
 ```bash
-echo "Teste do agent voice." | ./outputs/alexa.sh && echo "spoke"
+agent-voice status
 ```
 
-If nothing is heard, fix this before wiring any hooks — everything downstream
-assumes this step works.
-
-### 4. Wire your agent's hooks
-
-For Claude Code, add these to `~/.claude/settings.json`. Replace `<repo>` with
-the absolute path to your clone:
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [{"hooks": [{"type": "command",
-      "command": "<repo>/bin/notify claude-code start", "timeout": 5}]}],
-    "Stop": [{"hooks": [{"type": "command",
-      "command": "<repo>/bin/notify claude-code stop", "async": true, "timeout": 20}]}],
-    "SubagentStop": [{"hooks": [{"type": "command",
-      "command": "<repo>/bin/notify claude-code task", "async": true, "timeout": 20}]}],
-    "TaskCompleted": [{"hooks": [{"type": "command",
-      "command": "<repo>/bin/notify claude-code task", "async": true, "timeout": 20}]}],
-    "Notification": [{"hooks": [{"type": "command",
-      "command": "<repo>/bin/notify claude-code notification", "async": true, "timeout": 20}]}]
-  }
-}
+```
+Agents
+  claude-code  connected
+  codex        not installed
+Outputs (* = enabled)
+  * echo             alexa    notify.echo_dot_announce @ http://localhost:8123
+Settings
+  minSeconds=30
+  cooldownSeconds=120
+  maxSpeechChars=90
+Log (~/.local/state/agent-voice/events.log)
+  2026-09-25 16:05:23 claude-code  04c02385   spoke via echo: Claude Code terminou na sessão…
+  2026-09-25 16:07:41 claude-code  04c02385   silent (turn 12s < 30s)
 ```
 
-`UserPromptSubmit` is not optional: it is how the tool knows when your turn
-started, and therefore how long it took. Without it nothing else can work.
+> On Windows, see [Windows notes](#windows-notes) if PowerShell refuses to run `npm`.
 
-If your `settings.json` already has hooks, merge rather than replace — and back
-it up first.
+---
 
-### 5. Confirm it fired
+## Why
 
-Send any message to your agent, then:
+You give an agent something that takes a while and stop watching it. Then one
+of two things happens: the work finishes and waits for you to notice, or, worse,
+the agent stopped at a permission prompt thirty seconds in. A popup shows up in
+the window you are no longer looking at. A voice reaches you anyway.
 
-```bash
-tail ~/.local/state/agent-voice/events.log
-```
+agent-voice follows two rules:
 
-A line like `claude-code  04c02385  turn started` means the hooks are live. If
-nothing appears, your agent may still be running its old config — in Claude
-Code, opening `/hooks` once reloads it.
+- **Say something specific**: which session it is, how long it took, and what
+  you had asked for.
+- **Stay quiet most of the time**: short turns are never announced. A notifier
+  that talks after every reply gets muted on day one.
 
 ---
 
@@ -136,125 +98,302 @@ Code, opening `/hooks` once reloads it.
 
 | Situation | What happens |
 |---|---|
-| A turn finishes in under 30s | Silent. Otherwise it would talk after every "ok" |
-| A turn finishes in over 30s | **Speaks**, with how long it took and what you had asked |
-| Background work finishes (a subagent, a queued task) | **Speaks**, at most once every 120s |
-| Background work with nothing to report | Silent — a sentence with no content is noise |
-| It needs your permission or input | **Always speaks**, even during a cooldown |
+| A turn finishes in **under 30s** | Silent |
+| A turn finishes in **over 30s** | **Speaks**, with how long it took and what you asked |
+| Background work finishes (a subagent, a task) | **Speaks**, at most once every 120s per session |
+| Background work with nothing to report | Silent |
+| The agent **needs your permission or input** | **Always speaks**, even inside the cooldown |
 
-Every decision, including every silence, goes to the log with its reason:
+Every decision, including every silence, is written to the log with its reason:
 
 ```
-16:05:23  claude-code  notif1  spoke via alexa: Claude Code precisa de você na sessão verde.
+16:05:23  claude-code  notif1  spoke via echo: Claude Code precisa de você na sessão verde.
 15:57:38  claude-code  a891ee  silent (turn 21s < 30s)
 15:46:12  claude-code  04c023  silent (background_done with no content)
 ```
 
+When a session has no name, it gets a color ("na sessão azul, do projeto api").
+Colors are easy to tell apart by ear, which random ids are not.
+
 ---
 
-## Tuning it
+## Speakers
 
-The defaults are a starting point, not a recommendation. **Tune them against
-your own log.** To see how long your turns actually run:
+A speaker (an *output*) is added with `agent-voice output add <type> [name]`.
+You can have several; every enabled one speaks, and each gets at most 15
+seconds.
 
 ```bash
-grep -oE 'silent \(turn [0-9]+s' ~/.local/state/agent-voice/events.log \
-  | grep -oE '[0-9]+' | sort -n | tail -20
+agent-voice output list            # * marks the enabled ones
+agent-voice output test [name]     # speak the test sentence
+agent-voice output disable <name>  # keep it, but stop using it
+agent-voice output remove <name>
 ```
 
-If most of your turns sit below the threshold, it will feel broken — it will
-simply never speak. Mine started at 60s while my median turn was 21s, so it
-silenced everything.
+### Echo / Alexa (via Home Assistant)
 
-Override any variable in the environment, or edit `config.sh`:
+You need:
 
-| Variable | Default | What it does |
+1. **Home Assistant**, reachable from this machine (e.g. `http://localhost:8123`).
+2. The **[Alexa Media Player](https://github.com/alandtse/alexa_media_player)**
+   integration, which creates `notify.<device>_speak` and
+   `notify.<device>_announce` entities for each Echo.
+3. A **long-lived access token**: Home Assistant → your profile → *Security* →
+   *Long-lived access tokens* → *Create token*.
+
+```bash
+agent-voice output add alexa
+```
+
+It asks for the URL and the token, checks the token right away, lists your
+`notify.*` devices (with `_announce` first; those play a chime before speaking),
+and says the test sentence. The token is stored only in your config directory,
+with permissions `600`.
+
+### Your computer's voice
+
+```bash
+agent-voice output add local
+```
+
+| OS | Engine | Needs |
 |---|---|---|
-| `AV_MIN_SECONDS` | `30` | A turn shorter than this is not announced |
-| `AV_COOLDOWN_SECONDS` | `120` | Minimum gap between background announcements |
-| `AV_MAX_SPEECH_CHARS` | `90` | How much of your request is quoted back |
-| `AV_SPEAK_CMD` | `~/softwares/home-assistant/falar.sh` | The command that speaks |
-| `AV_OUTPUTS` | `alexa` | Which `outputs/<name>.sh` to send to |
-| `AV_STATE_DIR` | `~/.local/state/agent-voice` | Where state and the log live |
+| macOS | `say` | nothing |
+| Windows | SAPI (via PowerShell) | nothing |
+| Linux | `spd-say`, `espeak-ng` or `espeak` | `sudo apt install espeak-ng` |
 
----
+A Brazilian Portuguese voice is selected automatically when one is installed.
 
-## Using another speaker
-
-An output is a script that reads a sentence on stdin and makes noise. To use
-`espeak` instead of Alexa, create `outputs/espeak.sh`:
+### Any command
 
 ```bash
-#!/usr/bin/env bash
-set -uo pipefail
-sentence="$(cat)"
-[ -n "$sentence" ] || exit 1
-espeak -v pt-br "$sentence" >/dev/null 2>&1
+agent-voice output add command
 ```
 
-Then `chmod +x outputs/espeak.sh` and set `AV_OUTPUTS=espeak`. Listing more
-than one name sends to all of them: `AV_OUTPUTS="alexa espeak"`.
+Enter the command line. `{text}` is replaced by the sentence; if there is no
+`{text}`, the sentence is sent on stdin. Some examples:
+
+```bash
+~/bin/falar.sh -a {text}                          # your own script
+curl -s -d {text} ntfy.sh/my-agent-topic          # phone push notification
+notify-send agent-voice {text}                    # desktop notification
+```
+
+The command never goes through a shell. Arguments are passed exactly as typed,
+and a leading `~`, `$HOME` or `%USERPROFILE%` is expanded to your home
+directory. On Windows, `.cmd`/`.bat` speakers go through `cmd.exe` with every
+argument quoted and escaped, so the sentence can never run anything.
 
 ---
 
-## Using another agent
+## Agents
 
-Adding a second agent — Codex, Aider, your own script — means writing one
-adapter and nothing else. The adapter reads that agent's native output and
-prints one JSON event:
+| Agent | Hooks live in | Notes |
+|---|---|---|
+| **Claude Code** | `~/.claude/settings.json` | After connecting, open `/hooks` once so a running session reloads its config. |
+| **Codex CLI** | `~/.codex/hooks.json` | Codex only runs hooks you have trusted: open Codex and run `/hooks` once after connecting. |
+| **Anything else** | none | Use `agent-voice wrap`, below. |
 
-```json
-{ "type": "task_done",
-  "agent": "codex",
-  "session_id": "stable-id-for-this-session",
-  "session_name": "Optional human-readable name",
-  "project": "optional-directory-name",
-  "text": "what was asked, or the message" }
+```bash
+agent-voice connect claude-code      # asks first; --yes to skip the question
+agent-voice disconnect claude-code   # removes only agent-voice's hooks
 ```
 
-The four event types are `turn_start`, `task_done`, `background_done` and
-`needs_input`. Your adapter never decides whether to speak, never stores
-anything, and never builds a sentence — the core does all of that, so every
-agent gets the same behaviour and the same fixes.
+`connect` never changes hooks it did not add. Running it again changes
+nothing, and it always backs up the file first (`settings.json.bak-<date>`).
 
-Full instructions, including how to trigger an agent that has no hooks:
-[`adapters/CONTRACT.md`](adapters/CONTRACT.md).
+**Any other CLI** (Aider, a long build, a test suite) can use `wrap`. It speaks
+when the command finishes, if it ran longer than the threshold:
+
+```bash
+agent-voice wrap -- aider --message "refactor the parser"
+agent-voice wrap --name "build" -- npm run build
+```
+
+The exit code of the wrapped command is passed through. `wrap` cannot announce
+"needs you", because it cannot see inside the program.
+
+To support a new agent natively, see [`docs/adapters.md`](docs/adapters.md).
+
+---
+
+## Tuning
+
+Tune the thresholds against your own log. If most of your turns take less
+time than the threshold, it will seem broken, because it will simply never
+speak.
+
+```bash
+agent-voice config get                        # everything, including the phrases
+agent-voice config set minSeconds 20
+agent-voice config set cooldownSeconds 300
+agent-voice config reset minSeconds           # back to the default
+```
+
+| Key | Default | Meaning | Env override |
+|---|---|---|---|
+| `minSeconds` | 30 | A shorter turn is not announced | `AV_MIN_SECONDS` |
+| `cooldownSeconds` | 120 | Minimum gap between background announcements, per session | `AV_COOLDOWN_SECONDS` |
+| `maxSpeechChars` | 90 | How much of your request is quoted back | `AV_MAX_SPEECH_CHARS` |
+
+---
+
+## Changing what it says
+
+Each sentence is a template you can rewrite:
+
+```bash
+agent-voice config set phrases.taskDone "{agent} acabou {where}, levou {duration}.[ Pedido: {request}.]"
+agent-voice config set phrases.needsInput "Ei! {agent} precisa de você {where}{notice}."
+agent-voice config reset phrases.taskDone     # back to the default
+```
+
+`{name}` is a variable. A `[section]` is spoken only when every variable inside
+it has a value, so an empty request drops the whole clause instead of leaving
+"Pedido: ." behind.
+
+| Key | Variables | Default |
+|---|---|---|
+| `phrases.taskDone` | `{agent}` `{where}` `{duration}` `{request}` | `{agent} terminou {where}, depois de {duration}.[ Você tinha pedido: {request}.]` |
+| `phrases.backgroundDone` | `{agent}` `{where}` `{text}` | `{agent} terminou um trabalho em segundo plano {where}.[ Era: {text}.]` |
+| `phrases.needsInput` | `{agent}` `{where}` `{notice}` | `{agent} precisa de você {where}{notice}.` |
+
+| Variable | Example |
+|---|---|
+| `{agent}` | `Claude Code`, `Codex` |
+| `{where}` | `na sessão Home assistant repo` / `na sessão azul, do projeto api` |
+| `{duration}` | `cerca de 4 minutos` |
+| `{request}` | what you asked, without links, file paths or markdown |
+| `{text}` | what the background work was, e.g. `code-reviewer` |
+| `{notice}` | the agent's notice, translated: `, para usar o Bash`; empty when it adds nothing |
+
+A template with an unknown variable or unbalanced brackets is refused, so the
+speaker never reads out broken text.
+
+---
+
+## Commands
+
+```
+agent-voice setup                                     guided setup
+agent-voice status                                    agents, outputs, settings, latest log lines
+agent-voice test                                      speak a test sentence on every enabled output
+
+agent-voice connect <claude-code|codex> [--yes]       add hooks to an agent
+agent-voice disconnect <claude-code|codex>            remove them
+
+agent-voice output add <alexa|local|command> [name]
+agent-voice output list | test [name] | enable <name> | disable <name> | remove <name>
+
+agent-voice config get [key] | set <key> <value> | reset <key>
+agent-voice wrap [--name <label>] -- <command...>     announce when any command finishes
+```
+
+`agent-voice notify <agent> <event>` is also available: it is the hook entry
+point, called by your agent. You never need to run it yourself.
+
+---
+
+## Windows notes
+
+**"execução de scripts foi desabilitada" / "running scripts is disabled".**
+PowerShell blocks npm's `.ps1` launchers by default. You can allow them once,
+for your user only:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Or use `npm.cmd` and `agent-voice.cmd` instead. The agent hooks are not
+affected either way, because they call `agent-voice.cmd`.
+
+**"agent-voice não é reconhecido" / "is not recognized".** npm's global folder
+is not on your PATH. Add it, then open a new terminal and restart Claude Code:
+
+```powershell
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$(npm prefix -g)", "User")
+```
 
 ---
 
 ## Troubleshooting
 
-**It never speaks.** Check the log first — the reason is always there.
+Run `agent-voice status` first. The reason is almost always in the log lines it
+prints.
 
-- `silent (turn 21s < 30s)` → working as configured; lower `AV_MIN_SECONDS`.
-- `FAILED via alexa (...)` → the speaker command failed; the parenthesis holds
-  its error. Test it in isolation with step 3 above.
-- `no adapter at <path>` → the adapter file is missing, or not executable
-  (`chmod +x`).
-- `ignored: incomplete event` → the adapter produced an event without `type`,
-  `agent` or `session_id`.
-- Nothing at all → the hooks are not firing. Reload your agent's config.
+| You see | It means |
+|---|---|
+| `silent (turn 21s < 30s)` | Working as configured. Lower `minSeconds` if you want it to speak sooner. |
+| `silent (cooldown 120s)` | A background announcement was held back so the speaker doesn't chatter. |
+| `FAILED via <output> (…)` | The speaker failed; the parenthesis says why. Try `agent-voice output test <name>`. |
+| `no such output: <name>` | The output is enabled but not configured. Run `agent-voice output add`. |
+| Agent shows `legacy` | It still has hooks from the old bash version. Run `agent-voice connect <agent>`. |
+| Nothing in the log at all | The hooks are not firing. Claude Code: open `/hooks` once. Codex: trust them in `/hooks`. Check that `agent-voice` is on the PATH your agent sees. |
 
-**It speaks too much.** Raise `AV_MIN_SECONDS`, or raise
-`AV_COOLDOWN_SECONDS` to space out background announcements.
+**Uninstall:**
 
-**The state directory looks empty.** That is normal between turns — markers are
-created when a turn starts and deleted when it ends. The log is the source of
-truth, not the directory.
+```bash
+agent-voice disconnect claude-code   # and/or codex
+npm rm -g @lucas_zaia/agent-voice
+```
 
 ---
 
-## Notes
+## How it works
 
-- **Nothing here can break your agent.** Every entry point exits 0 no matter
-  what — bad input, missing files, a dead speaker. A hook that hangs or errors
-  is worse than no hook at all, so failures go to the log and nowhere else.
-- **Language.** The code and docs are English; the spoken sentences are
-  Brazilian Portuguese and live in one file, `lib/phrases.sh`. Translating means
-  editing that file only.
-- **Concurrency.** State is keyed per agent *and* per session, so several
-  sessions running at once never mix up their turns, durations or cooldowns.
+```
+agent hook ──▶ adapter ──▶ core ──▶ output ──▶ speaker
+              translate    decide    speak
+```
+
+| Piece | Job |
+|---|---|
+| **Adapter** (`src/adapters/`) | Knows one agent. Turns its hook payload into a standard event. Decides nothing. |
+| **Core** (`src/core/`) | Knows no agent. Measures turns, applies thresholds and cooldown, cleans the text (no links, paths or markdown), builds the sentence. |
+| **Output** (`src/outputs/`) | Takes a finished sentence and makes a device say it. |
+
+Some guarantees:
+
+- **It cannot break your agent.** The hook entry point always exits 0, never
+  waits more than a few seconds for input, and writes nothing your agent would
+  read. Failures go to the log and nowhere else.
+- **Parallel sessions never mix.** State is kept per agent and per session, so
+  turns, durations and cooldowns stay separate.
+- **Language.** The code and docs are in English. The spoken sentences are in
+  Brazilian Portuguese, and you can reword them (see
+  [Changing what it says](#changing-what-it-says)).
+
+| | Config | State and `events.log` |
+|---|---|---|
+| Linux | `~/.config/agent-voice` | `~/.local/state/agent-voice` |
+| macOS | `~/Library/Application Support/agent-voice` | `…/agent-voice/state` |
+| Windows | `%APPDATA%\agent-voice` | `%LOCALAPPDATA%\agent-voice` |
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/LucasZaia/agent-voice.git
+cd agent-voice
+npm test          # node:test, no dependencies
+npm link          # puts this checkout's agent-voice on your PATH
+```
+
+To point the hooks at a checkout without `npm link`, set the command they call
+before connecting:
+
+```bash
+AV_HOOK_COMMAND="node /path/to/agent-voice/bin/agent-voice.js" agent-voice connect claude-code
+```
+
+CI runs the suite on Linux, macOS and Windows with Node 20 and 22.
+
+**Upgrading from the old bash version:** install the package, run
+`agent-voice setup` (to reuse a speaker script, choose `command`), then run
+`agent-voice connect claude-code`. That replaces the old `…/bin/notify` hooks.
+The existing state in `~/.local/state/agent-voice` is reused as-is.
 
 ## License
 
-MIT.
+MIT

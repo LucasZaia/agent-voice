@@ -1,0 +1,14 @@
+{
+  "name": "@lucas_zaia/agent-voice",
+  "version": "1.1.0",
+  "description": "Make your coding agent talk to you: a smart speaker says when a long task finishes or when the agent needs you.",
+  "type": "module",
+  "bin": { "agent-voice": "bin/agent-voice.js" },
+  "files": ["bin", "src", "docs/adapters.md", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test" },
+  "repository": { "type": "git", "url": "git+https://github.com/LucasZaia/agent-voice.git" },
+  "keywords": ["claude-code", "codex", "alexa", "home-assistant", "tts", "notifications"],
+  "license": "MIT",
+  "publishConfig": { "access": "public" }
+}
