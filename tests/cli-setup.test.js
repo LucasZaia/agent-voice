@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sandbox, RECORDER, scriptedPrompter, collector } from './helpers.js';
 import { runSetup } from '../src/cli/setup.js';
@@ -73,4 +73,17 @@ test('cancelling inside an output question stops setup instead of offering a ret
   prompt.ask = async () => { throw cancelledError(); };
   await assert.rejects(runSetup([], { env: sb.env, out: c.out, prompt }), { code: 'CANCELLED' });
   assert.doesNotMatch(c.text(), /Could not set up/);
+});
+
+test('one unreadable agent config is reported and the other agents still connect', async () => {
+  const sb = sandbox();
+  mkdirSync(sb.env.CLAUDE_CONFIG_DIR, { recursive: true });
+  mkdirSync(sb.env.CODEX_HOME, { recursive: true });
+  writeFileSync(join(sb.env.CLAUDE_CONFIG_DIR, 'settings.json'), '{ broken');
+  const c = collector();
+  const prompt = scriptedPrompter([true, true, COMMAND_INDEX, recorderLine(sb), true]);
+  assert.equal(await runSetup([], { env: sb.env, out: c.out, prompt }), 0);
+  assert.match(c.text(), /claude-code: could not connect — .*invalid JSON/);
+  assert.ok(JSON.parse(readFileSync(join(sb.env.CODEX_HOME, 'hooks.json'), 'utf8')).hooks.Stop);
+  assert.deepEqual(sb.spokenLines(), [TEST_SENTENCE]);
 });

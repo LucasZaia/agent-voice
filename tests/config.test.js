@@ -91,3 +91,13 @@ test('a UTF-8 BOM in config.json or an instance file is accepted', () => {
   assert.equal(c.loadConfig(env).minSeconds, 45);
   assert.equal(c.readOutputInstance('x', env).type, 'command');
 });
+
+test('bad numbers in config.json fall back to the defaults', () => {
+  const { env } = sandbox();
+  mkdirSync(env.AV_CONFIG_DIR, { recursive: true });
+  writeFileSync(join(env.AV_CONFIG_DIR, 'config.json'),
+    JSON.stringify({ minSeconds: 'soon', cooldownSeconds: 1.5, maxSpeechChars: -3, outputs: ['a', 7, null] }));
+  const cfg = c.loadConfig(env);
+  assert.deepEqual([cfg.minSeconds, cfg.cooldownSeconds, cfg.maxSpeechChars], [30, 120, 90]);
+  assert.deepEqual(cfg.outputs, ['a']);
+});

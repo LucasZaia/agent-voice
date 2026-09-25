@@ -28,7 +28,13 @@ export async function runSetup(args, io) {
       out(`${adapter.name}: already connected.`);
       continue;
     }
-    await connectAgent(adapter, { env, out, prompt, yes: false });
+    // One agent's broken config file must not keep the others from connecting.
+    try {
+      await connectAgent(adapter, { env, out, prompt, yes: false });
+    } catch (e) {
+      if (isCancelled(e)) throw e;
+      out(`${adapter.name}: could not connect — ${e.message}`);
+    }
   }
   out('');
 

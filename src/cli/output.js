@@ -1,7 +1,7 @@
 import { OUTPUT_TYPES } from '../outputs/index.js';
 import {
   loadConfig, readStoredConfig, saveConfig, readOutputInstance, writeOutputInstance,
-  removeOutputInstance, listOutputInstances, isValidOutputName,
+  removeOutputInstance, listOutputInstances, isValidOutputName, outputInstanceExists,
 } from '../config.js';
 import { TEST_SENTENCE } from '../core/phrases.js';
 
@@ -48,12 +48,13 @@ export async function addOutput(type, name, { env, out, prompt, deps }) {
   return finalName;
 }
 
+// Reports instead of throwing, so `test` goes on to the next output.
 export async function testOutput(name, { env, out, deps }) {
-  const conf = readOutputInstance(name, env);
-  if (!conf) throw new Error(`no output named "${name}"`);
-  const mod = typeModule(conf.type);
   try {
-    await mod.speak(TEST_SENTENCE, conf, deps);
+    const conf = readOutputInstance(name, env);
+    if (!conf) throw new Error(`no output named "${name}"`);
+    if (!Object.hasOwn(OUTPUT_TYPES, conf.type ?? '')) throw new Error(`unknown output type "${conf.type}"`);
+    await OUTPUT_TYPES[conf.type].speak(TEST_SENTENCE, conf, deps);
     out(`ok    ${name}`);
     return true;
   } catch (e) {
@@ -95,6 +96,9 @@ export async function runOutput(args, io) {
     }
     case 'remove':
       if (!a) throw new Error(USAGE);
+      if (!isValidOutputName(a)) throw new Error(`invalid output name "${a}" (use a-z, 0-9 and -)`);
+      // An enabled name with no instance ("missing" in status) can be removed too.
+      if (!outputInstanceExists(a, env) && !storedOutputs(env).includes(a)) throw new Error(`no output named "${a}"`);
       removeOutputInstance(a, env);
       disableOutput(a, env);
       out(`Removed output "${a}".`);

@@ -1,4 +1,6 @@
 import { test } from 'node:test';
+import { mkdirSync, copyFileSync } from 'node:fs';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { sandbox, RECORDER, scriptedPrompter } from './helpers.js';
 import * as command from '../src/outputs/command.js';
@@ -85,4 +87,28 @@ test('a speaker gets 15s by default, well inside the hook budget', async () => {
   const calls = [];
   await command.speak('x', { type: 'command', argv: ['speaker'] }, { run: async (...a) => { calls.push(a); } });
   assert.equal(calls[0][2].timeoutMs, SPEAK_TIMEOUT_MS);
+});
+
+test('~, $HOME and %USERPROFILE% at the start of the command or an argument mean the home dir', () => {
+  const home = join('/', 'h', 'u');
+  const x = (a) => command.expandHome(a, home);
+  assert.equal(x('~'), home);
+  assert.equal(x('~/softwares/falar.sh'), join(home, 'softwares/falar.sh'));
+  assert.equal(x('$HOME/falar.sh'), join(home, 'falar.sh'));
+  assert.equal(x('${HOME}/falar.sh'), join(home, 'falar.sh'));
+  assert.equal(x('%USERPROFILE%\\falar.cmd'), join(home, 'falar.cmd'));
+  assert.equal(x('%userprofile%\\falar.cmd'), join(home, 'falar.cmd'));
+  assert.equal(x('~other/x'), '~other/x');
+  assert.equal(x('a~/x'), 'a~/x');
+  assert.equal(x('-a'), '-a');
+});
+
+test('the README upgrade line works: a ~ path speaks, and the sentence itself is never expanded', async () => {
+  const sb = sandbox();
+  const home = join(sb.dir, 'home');
+  mkdirSync(home, { recursive: true });
+  copyFileSync(RECORDER, join(home, 'rec.mjs'));
+  const argv = command.parseCommandLine(`"${process.execPath}" ~/rec.mjs "${sb.spoken}" {text}`);
+  await command.speak('~/nada $HOME', { type: 'command', argv }, { home });
+  assert.deepEqual(sb.spokenLines(), ['~/nada $HOME']);
 });

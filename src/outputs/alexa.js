@@ -48,7 +48,10 @@ export async function listNotifyEntities(conf, deps = {}) {
 
 export async function questions(prompt, current = {}, deps = {}) {
   const url = base(await prompt.ask('Home Assistant URL', current.url ?? 'http://localhost:8123'));
-  const token = await prompt.ask('Long-lived access token (Home Assistant → your profile → Security)', current.token ?? '');
+  // A saved token is never echoed back: Enter keeps it, the hint shows its end.
+  const tail = String(current.token ?? '').length >= 16 ? ` …${String(current.token).slice(-4)}` : '';
+  const saved = current.token ? ` [saved token${tail}, Enter keeps it]` : '';
+  const token = (await prompt.ask(`Long-lived access token (Home Assistant → your profile → Security)${saved}`, '')) || current.token || '';
   const conf = { type, url, token, entity: '' };
   await call(conf, '/api/', {}, deps);
   const entities = await listNotifyEntities(conf, deps);

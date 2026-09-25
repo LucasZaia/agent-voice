@@ -1,6 +1,6 @@
 // Precedence: built-in defaults < config.json < AV_* environment variables.
 // The environment wins so tests (and one-off runs) never touch real config.
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, chmodSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, chmodSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { configDir, stateDir } from './platform.js';
 
@@ -52,10 +52,12 @@ export function readStoredConfig(env = process.env) {
 export function loadConfig(env = process.env) {
   const cfg = { ...DEFAULTS, ...readStoredConfig(env) };
   for (const [key, envName] of Object.entries(NUMERIC_KEYS)) {
+    // A hand-edited "30s" or 1.5 must not reach the core as a threshold.
+    if (!Number.isSafeInteger(cfg[key]) || cfg[key] < 0) cfg[key] = DEFAULTS[key];
     if (/^[0-9]+$/.test(env[envName] ?? '')) cfg[key] = Number(env[envName]);
   }
   if (env.AV_OUTPUTS !== undefined) cfg.outputs = env.AV_OUTPUTS.split(/\s+/).filter(Boolean);
-  if (!Array.isArray(cfg.outputs)) cfg.outputs = [];
+  cfg.outputs = Array.isArray(cfg.outputs) ? cfg.outputs.filter((n) => typeof n === 'string') : [];
   return { ...cfg, configDir: configDir(env), stateDir: stateDir(env) };
 }
 
@@ -74,6 +76,9 @@ export function writeOutputInstance(name, conf, env = process.env) {
   if (!isValidOutputName(name)) throw new Error(`invalid output name "${name}" (use a-z, 0-9 and -)`);
   writeJson(instanceFile(name, env), conf, 0o600);
 }
+
+// True even for a file too broken to read, so it can still be removed.
+export const outputInstanceExists = (name, env = process.env) => isValidOutputName(name) && existsSync(instanceFile(name, env));
 
 export function removeOutputInstance(name, env = process.env) {
   if (isValidOutputName(name)) rmSync(instanceFile(name, env), { force: true });

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sandbox, RECORDER, scriptedPrompter, collector } from './helpers.js';
 import { runOutput, addOutput, testOutput, nextFreeName } from '../src/cli/output.js';
-import { readStoredConfig, readOutputInstance, writeOutputInstance } from '../src/config.js';
+import { readStoredConfig, readOutputInstance, writeOutputInstance, saveConfig } from '../src/config.js';
 import { TEST_SENTENCE } from '../src/core/phrases.js';
 
 const recorderLine = (sb) => `"${process.execPath}" "${RECORDER}" "${sb.spoken}" {text}`;
@@ -74,4 +74,32 @@ test('test reports failures with the reason and exits 1', async () => {
 test('output test with nothing active is an error', async () => {
   const sb = sandbox();
   await assert.rejects(runOutput(['test'], { env: sb.env, out: () => {} }), /no active outputs/);
+});
+
+test('test goes through every enabled output, reporting missing ones as FAIL', async () => {
+  const sb = sandbox();
+  const c = collector();
+  writeOutputInstance('rec', { type: 'command', argv: [process.execPath, RECORDER, sb.spoken, '{text}'] }, sb.env);
+  saveConfig({ outputs: ['ghost', 'weird', 'rec'] }, sb.env);
+  writeOutputInstance('weird', { type: 'nope' }, sb.env);
+  assert.equal(await runOutput(['test'], { env: sb.env, out: c.out }), 1);
+  assert.match(c.text(), /FAIL\s+ghost: no output named "ghost"/);
+  assert.match(c.text(), /FAIL\s+weird: unknown output type "nope"/);
+  assert.match(c.text(), /ok\s+rec/);
+  assert.deepEqual(sb.spokenLines(), [TEST_SENTENCE]);
+});
+
+test('remove of a name that does not exist is an error', async () => {
+  const sb = sandbox();
+  const c = collector();
+  await assert.rejects(runOutput(['remove', 'ghost'], { env: sb.env, out: c.out }), /no output named "ghost"/);
+  await assert.rejects(runOutput(['remove', '../x'], { env: sb.env, out: c.out }), /invalid output name/);
+  assert.deepEqual(c.lines, []);
+});
+
+test('remove of an enabled output with no instance cleans it from the config', async () => {
+  const sb = sandbox();
+  saveConfig({ outputs: ['ghost'] }, sb.env);
+  await runOutput(['remove', 'ghost'], { env: sb.env, out: () => {} });
+  assert.deepEqual(readStoredConfig(sb.env).outputs, []);
 });

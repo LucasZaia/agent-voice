@@ -109,3 +109,20 @@ test('Home Assistant gets 15s by default, well inside the hook budget', async ()
   const fetch = async () => { throw Object.assign(new Error('late'), { name: 'TimeoutError' }); };
   await assert.rejects(alexa.speak('x', { type: 'alexa', url: 'http://h', token: 't', entity: 'notify.e' }, { fetch }), /within 15s/);
 });
+
+test('re-adding keeps the saved token on Enter and never shows it', async () => {
+  const ha = await fakeHA();
+  try {
+    const shown = [];
+    const answers = [ha.url, '', ''];
+    const prompt = {
+      async ask(q, def = '') { shown.push(q, def); const a = answers.shift(); return a === '' ? def : a; },
+      async choose(q, options, def) { shown.push(q); return def; },
+    };
+    const conf = await alexa.questions(prompt, { url: ha.url, token: 'good', entity: 'notify.echo_speak' });
+    assert.equal(conf.token, 'good');
+    assert.equal(conf.entity, 'notify.echo_speak');
+    assert.ok(shown.every((x) => !String(x).includes('good')), JSON.stringify(shown));
+    assert.match(shown[2], /saved token/);
+  } finally { ha.close(); }
+});

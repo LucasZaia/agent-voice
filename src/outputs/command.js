@@ -1,5 +1,7 @@
 // Runs any command that makes noise. {text} in its arguments is replaced by the
 // sentence; without {text}, the sentence goes on stdin. No shell is involved.
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { run as runProcess, SPEAK_TIMEOUT_MS } from './run.js';
 
 export const type = 'command';
@@ -30,6 +32,18 @@ export function parseCommandLine(line) {
   return out;
 }
 
+// No shell means no ~ expansion, yet `~/softwares/falar.sh -a {text}` is what
+// people type. A leading ~, $HOME, ${HOME} or %USERPROFILE% in the command or
+// an argument is the home directory; the sentence is never expanded.
+const HOME_PREFIX = /^(?:~|\$HOME|\$\{HOME\}|%USERPROFILE%)(?=$|[\\/])/i;
+
+export function expandHome(arg, home = homedir()) {
+  const m = HOME_PREFIX.exec(arg);
+  if (!m) return arg;
+  const rest = arg.slice(m[0].length).replace(/^[\\/]+/, '');
+  return rest ? join(home, rest) : home;
+}
+
 export const describe = (conf) => (conf.argv ?? []).join(' ');
 
 export async function questions(prompt, current = {}) {
@@ -44,7 +58,7 @@ export async function questions(prompt, current = {}) {
 
 export async function speak(sentence, conf, deps = {}) {
   if (!Array.isArray(conf.argv) || conf.argv.length === 0) throw new Error('command output has no argv');
-  const [cmd, ...rest] = conf.argv;
+  const [cmd, ...rest] = conf.argv.map((a) => expandHome(String(a), deps.home));
   const placeholder = rest.some((a) => a.includes('{text}'));
   const args = rest.map((a) => a.replaceAll('{text}', sentence));
   const run = deps.run ?? runProcess;

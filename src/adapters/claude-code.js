@@ -1,7 +1,7 @@
 // Translates Claude Code hook payloads into canonical events. Pure: it reads
 // the payload, returns one event, and keeps no state. Everything it knows about
 // Claude Code — hook names, field names, where the session title hides — is here.
-import { readFileSync, existsSync } from 'node:fs';
+import { openSync, readSync, fstatSync, closeSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { str, projectOf } from './common.js';
@@ -28,21 +28,48 @@ export const hookReply = () => '';
 
 // Claude Code writes an AI-generated title into the transcript as
 // {"type":"ai-title","aiTitle":"..."} and rewrites it as the topic shifts.
-// Read from the end: the newest one wins.
-export function sessionName(transcriptPath) {
-  if (!transcriptPath) return '';
-  let text;
-  try { text = readFileSync(transcriptPath, 'utf8'); } catch { return ''; }
-  const lines = text.split(/\r?\n/);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (!lines[i].includes('"type":"ai-title"')) continue;
-    try {
-      return str(JSON.parse(lines[i]).aiTitle).replace(/[_-]+/g, ' ');
-    } catch {
-      return '';
-    }
+// The newest one wins, so the file is read backwards in chunks: transcripts
+// grow to many megabytes and the title is usually near the end.
+function titleOf(line) {
+  if (!line.includes('"type":"ai-title"')) return null;
+  try {
+    return str(JSON.parse(line).aiTitle).replace(/[_-]+/g, ' ');
+  } catch {
+    return '';
   }
-  return '';
+}
+
+export function sessionName(transcriptPath, chunkSize = 64 * 1024) {
+  if (!transcriptPath) return '';
+  let fd;
+  try {
+    fd = openSync(transcriptPath, 'r');
+    let pos = fstatSync(fd).size;
+    // Pieces of the line being assembled, oldest first: everything after the
+    // newest newline not yet consumed. Joined once per line, so one huge line
+    // (a large tool result) is not copied again for every chunk.
+    let parts = [];
+    while (pos > 0) {
+      const size = Math.min(chunkSize, pos);
+      pos -= size;
+      const chunk = Buffer.alloc(size);
+      readSync(fd, chunk, 0, size, pos);
+      // Splitting on the newline byte keeps multi-byte UTF-8 characters whole.
+      let end = size;
+      for (let nl = chunk.lastIndexOf(10, end - 1); nl !== -1; nl = end > 0 ? chunk.lastIndexOf(10, end - 1) : -1) {
+        const title = titleOf(Buffer.concat([chunk.subarray(nl + 1, end), ...parts]).toString('utf8'));
+        if (title !== null) return title;
+        parts = [];
+        end = nl;
+      }
+      parts.unshift(chunk.subarray(0, end));
+    }
+    return titleOf(Buffer.concat(parts).toString('utf8')) ?? '';
+  } catch {
+    return '';
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
 }
 
 // SubagentStop / TaskCompleted rarely fill agent_type, so try each field in

@@ -98,3 +98,22 @@ test('hooks match the README wiring and nothing is written back to Claude Code',
   assert.equal(cc.hookReply('stop'), '');
   assert.equal(ADAPTERS['claude-code'], cc);
 });
+
+test('a large transcript is read from the end; the newest title wins across chunk boundaries', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'av-tr-'));
+  const tr = join(dir, 'big.jsonl');
+  const filler = `${JSON.stringify({ type: 'user', message: 'x'.repeat(1000) })}\n`;
+  writeFileSync(tr, '{"type":"ai-title","aiTitle":"Old"}\n' + filler.repeat(5000)
+    + '{"type":"ai-title","aiTitle":"Configuração_do_ção"}\r\n' + filler.repeat(3));
+  assert.equal(cc.sessionName(tr), 'Configuração do ção');
+  for (const chunk of [1, 7, 64]) assert.equal(cc.sessionName(tr, chunk), 'Configuração do ção', `chunk ${chunk}`);
+  const first = join(dir, 'first.jsonl');
+  writeFileSync(first, '{"type":"ai-title","aiTitle":"Só no começo"}\n' + filler.repeat(200));
+  assert.equal(cc.sessionName(first, 4096), 'Só no começo');
+});
+
+test('windows: the home dir is recognised whatever the case or separators', () => {
+  assert.equal(projectOf('c:/users/U/', 'C:\\Users\\u', 'win32'), '');
+  assert.equal(projectOf('C:\\Users\\u\\Code\\Proj', 'C:\\Users\\u', 'win32'), 'Proj');
+  assert.equal(projectOf('/home/U', '/home/u', 'linux'), 'U');
+});
