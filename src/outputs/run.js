@@ -1,16 +1,16 @@
 // Runs a speaker process with a hard timeout. A hook that hangs is worse than
 // one that fails, so every child gets killed eventually.
 import { spawn as nodeSpawn } from 'node:child_process';
+import { spawnCommand, spawnErrorMessage } from '../spawn-command.js';
 
-export function run(cmd, args, { input = '', timeoutMs = 20000, env, spawn = nodeSpawn } = {}) {
+export function run(cmd, args, { input = '', timeoutMs = 20000, env, spawn = nodeSpawn, platform = process.platform } = {}) {
   return new Promise((resolve, reject) => {
-    // Windows refuses to spawn .cmd/.bat without a shell.
-    const shell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+    const startError = (e) => new Error(spawnErrorMessage(e, cmd, env ?? process.env, platform));
     let child;
     try {
-      child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], shell, env, windowsHide: true });
+      child = spawnCommand(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], env, windowsHide: true }, { spawn, platform });
     } catch (e) {
-      reject(new Error(e.message));
+      reject(startError(e));
       return;
     }
     let stdout = '';
@@ -28,10 +28,7 @@ export function run(cmd, args, { input = '', timeoutMs = 20000, env, spawn = nod
     }, timeoutMs);
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.on('data', (d) => { stderr += d; });
-    child.on('error', (e) => {
-      const isNotFound = e.code === 'ENOENT' || e.code === 'EACCES' || e.code === 'EISDIR';
-      finish(reject, new Error(isNotFound ? `command not found: ${cmd}` : e.message));
-    });
+    child.on('error', (e) => finish(reject, startError(e)));
     child.on('close', (code) => {
       if (code === 0) finish(resolve, stdout);
       else finish(reject, new Error(stderr.trim().split(/\r?\n/)[0] || `exited ${code} with no output`));

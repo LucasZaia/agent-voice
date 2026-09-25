@@ -5,6 +5,7 @@ import { constants } from 'node:os';
 import { createContext } from '../core/context.js';
 import { handle } from '../core/handle.js';
 import { projectOf } from '../adapters/common.js';
+import { spawnCommand, spawnErrorMessage } from '../spawn-command.js';
 
 const USAGE = 'usage: agent-voice wrap [--name <label>] -- <command> [args...]';
 
@@ -24,7 +25,10 @@ export function parseWrapArgs(args) {
   return { name, command };
 }
 
-export async function runWrap(args, { env = process.env, spawn = nodeSpawn, cwd = process.cwd(), pid = process.pid, notify } = {}) {
+export async function runWrap(args, {
+  env = process.env, spawn = nodeSpawn, platform = process.platform, cwd = process.cwd(), pid = process.pid, notify,
+  err = (s) => process.stderr.write(`${s}\n`),
+} = {}) {
   const { name, command } = parseWrapArgs(args);
   const emit = notify ?? (async (event) => {
     try { await handle(event, createContext(env)); } catch { /* announcing must never break the wrapped command */ }
@@ -50,14 +54,15 @@ export async function runWrap(args, { env = process.env, spawn = nodeSpawn, cwd 
     process.on('SIGINT', onInt);
     process.on('SIGTERM', onTerm);
     try {
-      child = spawn(command[0], command.slice(1), { stdio: 'inherit', shell: process.platform === 'win32', env });
+      // No shell on any OS: `git commit -m "fix a & b"` must commit, not run b.
+      child = spawnCommand(command[0], command.slice(1), { stdio: 'inherit', env }, { spawn, platform });
     } catch (e) {
-      process.stderr.write(`agent-voice wrap: ${e.message}\n`);
+      err(`agent-voice wrap: ${spawnErrorMessage(e, command[0], env, platform)}`);
       finish(127);
       return;
     }
     child.on('error', (e) => {
-      process.stderr.write(`agent-voice wrap: ${e.code === 'ENOENT' ? `command not found: ${command[0]}` : e.message}\n`);
+      err(`agent-voice wrap: ${spawnErrorMessage(e, command[0], env, platform)}`);
       finish(127);
     });
     child.on('exit', (c, signal) => finish(c ?? 128 + (constants.signals[signal] ?? 0)));

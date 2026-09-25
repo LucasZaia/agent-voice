@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sandbox, ROOT } from './helpers.js';
@@ -36,10 +37,12 @@ test('--name becomes the spoken session name', async () => {
   assert.equal(r.events[0].session_name, 'o build');
 });
 
-test('a missing command returns 127 and still closes the turn', async () => {
+test('a missing command returns 127, says so, and still closes the turn', async () => {
   const r = recorder();
-  const code = await runWrap(['--', 'definitely-not-a-command-av'], { notify: r.notify });
+  const errors = [];
+  const code = await runWrap(['--', 'definitely-not-a-command-av'], { notify: r.notify, err: (s) => errors.push(s) });
   assert.equal(code, 127);
+  assert.deepEqual(errors, ['agent-voice wrap: command not found: definitely-not-a-command-av']);
   assert.deepEqual(r.events.map((e) => e.type), ['turn_start', 'task_done']);
 });
 
@@ -51,4 +54,34 @@ test('through the executable: exit code passes through and the short turn is log
   const log = readFileSync(join(sb.env.AV_STATE_DIR, 'events.log'), 'utf8');
   assert.match(log, /wrap\s+wrap-\d+/);
   assert.match(log, /silent \(turn 0s < 30s\)/);
+});
+
+test('windows: a missing command returns 127 before anything is spawned', async () => {
+  const r = recorder();
+  let spawned = false;
+  const spawn = () => {
+    spawned = true;
+    const child = new EventEmitter();
+    setImmediate(() => child.emit('exit', 1, null)); // what cmd.exe would answer
+    return child;
+  };
+  const code = await runWrap(['--', 'definitely-not-a-command-av'], { notify: r.notify, spawn, platform: 'win32', env: { PATH: '' }, err: () => {} });
+  assert.equal(code, 127);
+  assert.equal(spawned, false);
+  assert.deepEqual(r.events.map((e) => e.type), ['turn_start', 'task_done']);
+});
+
+test('the wrapped command never runs through a shell, so its arguments stay literal', async () => {
+  const r = recorder();
+  const calls = [];
+  const spawn = (file, args, options) => {
+    calls.push({ file, args, options });
+    const child = new EventEmitter();
+    setImmediate(() => child.emit('exit', 0, null));
+    return child;
+  };
+  const code = await runWrap(['--', 'git', 'commit', '-m', 'fix a & b'], { notify: r.notify, spawn, platform: 'linux' });
+  assert.equal(code, 0);
+  assert.deepEqual(calls[0].args, ['commit', '-m', 'fix a & b']);
+  assert.equal(calls[0].options.shell, false);
 });

@@ -62,3 +62,8 @@ test('resolveOutputs: known instance speaks, missing one has no speak()', async 
   assert.match(weird.reason, /unknown output type nope/);
   assert.ok(OUTPUT_TYPES.command);
 });
+
+test('something that exists but cannot be executed says so', async () => {
+  const sb = sandbox();
+  await assert.rejects(run(sb.dir, []), { message: `not found or not executable: ${sb.dir}` });
+});
