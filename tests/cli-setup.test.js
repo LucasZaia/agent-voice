@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sandbox, RECORDER, scriptedPrompter, collector } from './helpers.js';
 import { runSetup } from '../src/cli/setup.js';
+import { cancelledError } from '../src/cli/prompt.js';
 import { readStoredConfig, readOutputInstance } from '../src/config.js';
 import { TEST_SENTENCE } from '../src/core/phrases.js';
 
@@ -63,4 +64,13 @@ test('no agent installed points to wrap', async () => {
   const c = collector();
   await runSetup([], { env: sb.env, out: c.out, prompt: scriptedPrompter([COMMAND_INDEX, recorderLine(sb), true]) });
   assert.match(c.text(), /agent-voice wrap --/);
+});
+
+test('cancelling inside an output question stops setup instead of offering a retry', async () => {
+  const sb = sandbox();
+  const c = collector();
+  const prompt = scriptedPrompter([COMMAND_INDEX]);
+  prompt.ask = async () => { throw cancelledError(); };
+  await assert.rejects(runSetup([], { env: sb.env, out: c.out, prompt }), { code: 'CANCELLED' });
+  assert.doesNotMatch(c.text(), /Could not set up/);
 });

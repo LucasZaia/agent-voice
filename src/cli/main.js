@@ -1,5 +1,5 @@
 import { runNotify, readStdin } from './notify.js';
-import { createPrompter } from './prompt.js';
+import { createPrompter, isCancelled } from './prompt.js';
 import { runWrap } from './wrap.js';
 import { runOutput, testActive } from './output.js';
 import { runConfig } from './config.js';
@@ -61,7 +61,8 @@ export async function main(argv, io = defaultIO()) {
     return await run(rest, withPrompt);
   } catch (e) {
     io.err(`agent-voice: ${e.message}`);
-    return 1;
+    // 130 is what a shell reports for a command stopped by Ctrl+C.
+    return isCancelled(e) && e.signal === 'SIGINT' ? 130 : 1;
   } finally {
     prompter?.close();
   }

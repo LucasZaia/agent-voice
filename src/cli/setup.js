@@ -6,6 +6,7 @@ import { OUTPUT_TYPES } from '../outputs/index.js';
 import { loadConfig, readOutputInstance, removeOutputInstance } from '../config.js';
 import { connectAgent } from './connect.js';
 import { addOutput, testOutput, disableOutput } from './output.js';
+import { isCancelled } from './prompt.js';
 
 const LABELS = {
   alexa: 'alexa    an Echo, through Home Assistant',
@@ -41,6 +42,7 @@ export async function runSetup(args, io) {
     try {
       name = await addOutput(types[i], undefined, io);
     } catch (e) {
+      if (isCancelled(e)) throw e;
       out(`Could not set up ${types[i]}: ${e.message}`);
       if (!(await prompt.confirm('Try again?', true))) break;
       continue;
