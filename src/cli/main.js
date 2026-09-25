@@ -1,5 +1,6 @@
 import { runNotify, readStdin } from './notify.js';
 import { createPrompter } from './prompt.js';
+import { runWrap } from './wrap.js';
 
 const HELP = `Usage: agent-voice <command>
 
@@ -26,7 +27,9 @@ export function defaultIO(env = process.env) {
 }
 
 // Each later task registers its command here: name → async (args, io) => exit code.
-const COMMANDS = {};
+const COMMANDS = {
+  wrap: (args, io) => runWrap(args, { env: io.env }),
+};
 
 export async function main(argv, io = defaultIO()) {
   const [cmd, ...rest] = argv;
