@@ -131,3 +131,12 @@ test('a successful output logs spoke via', async () => {
   await handle(ev('needs_input', 'ok1', 'Repo X', 'proj', ''), ctx);
   assert.match(logText(), /spoke via fake: Claude Code precisa de você na sessão Repo X\./);
 });
+
+test('custom phrases from config reach the spoken sentence', async () => {
+  const { ctx, spoken, backdate, ev } = setup();
+  ctx.config.phrases = { taskDone: '{agent} acabou {where} em {duration}.[ Pedido: {request}.]' };
+  await handle(ev('turn_start', 'tp', 'Repo X', 'proj', 'criar o compose'), ctx);
+  backdate('tp', 240);
+  await handle(ev('task_done', 'tp', 'Repo X', 'proj'), ctx);
+  assert.deepEqual(spoken, ['Claude Code acabou na sessão Repo X em cerca de 4 minutos. Pedido: criar o compose.']);
+});

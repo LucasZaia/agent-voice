@@ -1,5 +1,6 @@
 // Everything spoken lives here, and it is the only file in Portuguese. Adding a
-// language, or changing what the speaker says, touches this file and nothing else.
+// language touches this file and nothing else; users reword the sentences
+// through config.json "phrases" (see DEFAULT_PHRASES).
 import { cksum } from './hash.js';
 import { stripTrailingPunct } from './speech.js';
 
@@ -26,14 +27,57 @@ export function durationPhrase(seconds) {
   return minutes <= 1 ? 'cerca de um minuto' : `cerca de ${minutes} minutos`;
 }
 
-export function phraseTaskDone(agent, place, duration, text) {
-  const s = `${agent} terminou ${place}, depois de ${duration}.`;
-  return text ? `${s} Você tinha pedido: ${stripTrailingPunct(text)}.` : s;
+// The spoken sentences, as templates the user can override (config.json
+// "phrases"). {name} is a variable; a [section] is spoken only when every
+// variable inside it has a value, so "[ Era: {text}.]" vanishes with no text.
+export const DEFAULT_PHRASES = Object.freeze({
+  taskDone: '{agent} terminou {where}, depois de {duration}.[ Você tinha pedido: {request}.]',
+  backgroundDone: '{agent} terminou um trabalho em segundo plano {where}.[ Era: {text}.]',
+  needsInput: '{agent} precisa de você {where}{notice}.',
+});
+
+export const PHRASE_VARS = Object.freeze({
+  taskDone: ['agent', 'where', 'duration', 'request'],
+  backgroundDone: ['agent', 'where', 'text'],
+  needsInput: ['agent', 'where', 'notice'],
+});
+
+const MAX_TEMPLATE_CHARS = 300;
+const VAR_RE = /\{([^{}]*)\}/g;
+
+// null when the template is usable, otherwise the reason it is not.
+export function validateTemplate(name, template) {
+  if (!Object.hasOwn(PHRASE_VARS, name)) return `unknown phrase "${name}" (phrases: ${Object.keys(PHRASE_VARS).join(', ')})`;
+  if (typeof template !== 'string' || !template.trim()) return `phrases.${name} is empty`;
+  if (template.length > MAX_TEMPLATE_CHARS) return `phrases.${name} is too long (max ${MAX_TEMPLATE_CHARS} characters)`;
+  let depth = 0;
+  for (const ch of template) {
+    if (ch === '[') depth += 1;
+    if (ch === ']') depth -= 1;
+    if (depth < 0 || depth > 1) return `phrases.${name}: brackets must be balanced and not nested`;
+  }
+  if (depth !== 0) return `phrases.${name}: brackets must be balanced and not nested`;
+  for (const [, v] of template.matchAll(VAR_RE)) {
+    if (!PHRASE_VARS[name].includes(v)) return `phrases.${name}: unknown variable {${v}} (use: ${PHRASE_VARS[name].join(', ')})`;
+  }
+  return null;
 }
 
-export function phraseBackgroundDone(agent, place, text) {
-  const s = `${agent} terminou um trabalho em segundo plano ${place}.`;
-  return text ? `${s} Era: ${stripTrailingPunct(text)}.` : s;
+function render(name, templates, vars) {
+  const custom = templates?.[name];
+  const template = custom !== undefined && validateTemplate(name, custom) === null ? custom : DEFAULT_PHRASES[name];
+  const fill = (part) => part.replace(VAR_RE, (_, v) => vars[v] ?? '');
+  return template
+    .replace(/\[([^\]]*)\]/g, (_, inner) => ([...inner.matchAll(VAR_RE)].every(([, v]) => vars[v]) ? fill(inner) : ''))
+    .replace(VAR_RE, (_, v) => vars[v] ?? '');
+}
+
+export function phraseTaskDone(agent, place, duration, text, templates) {
+  return render('taskDone', templates, { agent, where: place, duration, request: text ? stripTrailingPunct(text) : '' });
+}
+
+export function phraseBackgroundDone(agent, place, text, templates) {
+  return render('backgroundDone', templates, { agent, where: place, text: text ? stripTrailingPunct(text) : '' });
 }
 
 // Agent notices arrive in English. Speaking one verbatim after a Portuguese
@@ -48,7 +92,6 @@ export function translateNotice(text) {
   return `. ${text}`;
 }
 
-export function phraseNeedsInput(agent, place, text) {
-  const s = `${agent} precisa de você ${place}`;
-  return text ? `${s}${translateNotice(stripTrailingPunct(text))}.` : `${s}.`;
+export function phraseNeedsInput(agent, place, text, templates) {
+  return render('needsInput', templates, { agent, where: place, notice: text ? translateNotice(stripTrailingPunct(text)) : '' });
 }

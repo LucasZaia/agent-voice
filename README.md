@@ -75,7 +75,7 @@ agent-voice output add <alexa|local|command> [name]
 agent-voice output list | remove | enable | disable | test [name]
 agent-voice wrap [--name <label>] -- <command...>
 agent-voice status
-agent-voice config get [key] | set <key> <value>
+agent-voice config get [key] | set <key> <value> | reset <key>
 agent-voice test
 ```
 
@@ -121,6 +121,30 @@ agent-voice config set cooldownSeconds 300
 | `minSeconds` | 30 | `AV_MIN_SECONDS` |
 | `cooldownSeconds` | 120 | `AV_COOLDOWN_SECONDS` |
 | `maxSpeechChars` | 90 | `AV_MAX_SPEECH_CHARS` |
+
+## Changing what it says
+
+Each sentence is a template you can reword. `{name}` is a variable; a
+`[section]` is spoken only when every variable inside it has a value, so an
+empty request drops its whole clause.
+
+| Key | Variables | Default |
+|---|---|---|
+| `phrases.taskDone` | `{agent}` `{where}` `{duration}` `{request}` | `{agent} terminou {where}, depois de {duration}.[ Você tinha pedido: {request}.]` |
+| `phrases.backgroundDone` | `{agent}` `{where}` `{text}` | `{agent} terminou um trabalho em segundo plano {where}.[ Era: {text}.]` |
+| `phrases.needsInput` | `{agent}` `{where}` `{notice}` | `{agent} precisa de você {where}{notice}.` |
+
+```bash
+agent-voice config set phrases.taskDone "{agent} acabou {where}, levou {duration}.[ Pedido: {request}.]"
+agent-voice config get phrases.taskDone
+agent-voice config reset phrases.taskDone     # back to the default
+```
+
+`{where}` is "na sessão <name>" (or a colour plus the project when there is no
+name), `{duration}` is "cerca de 4 minutos", and `{notice}` is the agent's
+notice translated — ", para usar o Bash" — or empty. A template with an
+unknown variable or unbalanced brackets is refused, so the speaker never reads
+out broken text.
 
 ## Where things live
 

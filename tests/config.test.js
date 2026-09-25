@@ -101,3 +101,11 @@ test('bad numbers in config.json fall back to the defaults', () => {
   assert.deepEqual([cfg.minSeconds, cfg.cooldownSeconds, cfg.maxSpeechChars], [30, 120, 90]);
   assert.deepEqual(cfg.outputs, ['a']);
 });
+
+test('phrases: valid custom templates load; broken ones fall back to the default', () => {
+  const { env } = sandbox();
+  c.saveConfig({ phrases: { taskDone: '{agent} acabou.', needsInput: '{agent} {nada}', bogus: 'x' } }, env);
+  assert.deepEqual(c.loadConfig(env).phrases, { taskDone: '{agent} acabou.' });
+  c.saveConfig({ phrases: 'nope' }, env);
+  assert.deepEqual(c.loadConfig(env).phrases, {});
+});

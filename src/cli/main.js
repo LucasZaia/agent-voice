@@ -17,8 +17,9 @@ const HELP = `Usage: agent-voice <command>
   wrap [--name <label>] -- <command> [args...]
                                     announce when any command finishes
   status                            agents, outputs, settings and the latest log lines
-  config get [key] | set <key> <value>
-                                    keys: minSeconds, cooldownSeconds, maxSpeechChars
+  config get [key] | set <key> <value> | reset <key>
+                                    keys: minSeconds, cooldownSeconds, maxSpeechChars,
+                                    phrases.taskDone, phrases.backgroundDone, phrases.needsInput
   test                              speak a test sentence on every active output
   notify <agent> <subcommand>       hook entry point (called by your agent, not by you)`;
 

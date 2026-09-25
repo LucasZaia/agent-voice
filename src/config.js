@@ -3,8 +3,9 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, chmodSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { configDir, stateDir } from './platform.js';
+import { validateTemplate } from './core/phrases.js';
 
-export const DEFAULTS = Object.freeze({ minSeconds: 30, cooldownSeconds: 120, maxSpeechChars: 90, outputs: [] });
+export const DEFAULTS = Object.freeze({ minSeconds: 30, cooldownSeconds: 120, maxSpeechChars: 90, outputs: [], phrases: {} });
 
 export const NUMERIC_KEYS = Object.freeze({
   minSeconds: 'AV_MIN_SECONDS',
@@ -58,13 +59,20 @@ export function loadConfig(env = process.env) {
   }
   if (env.AV_OUTPUTS !== undefined) cfg.outputs = env.AV_OUTPUTS.split(/\s+/).filter(Boolean);
   cfg.outputs = Array.isArray(cfg.outputs) ? cfg.outputs.filter((n) => typeof n === 'string') : [];
+  // A hand-edited template that would speak broken text is dropped; the default speaks instead.
+  const phrases = cfg.phrases && typeof cfg.phrases === 'object' && !Array.isArray(cfg.phrases) ? cfg.phrases : {};
+  cfg.phrases = Object.fromEntries(Object.entries(phrases).filter(([name, tpl]) => validateTemplate(name, tpl) === null));
   return { ...cfg, configDir: configDir(env), stateDir: stateDir(env) };
 }
 
 export function saveConfig(patch, env = process.env) {
-  const next = { ...readStoredConfig(env), ...patch };
-  writeJson(configFile(env), next);
-  return next;
+  return writeStoredConfig({ ...readStoredConfig(env), ...patch }, env);
+}
+
+// Replaces config.json wholesale — the way to remove a key.
+export function writeStoredConfig(value, env = process.env) {
+  writeJson(configFile(env), value);
+  return value;
 }
 
 export function readOutputInstance(name, env = process.env) {

@@ -48,3 +48,44 @@ test('needs input: notices are translated or dropped', () => {
 });
 
 test('the test sentence is Portuguese', () => assert.match(p.TEST_SENTENCE, /agent voice/));
+
+test('templates: defaults reproduce the built-in sentences exactly', () => {
+  for (const [name, tpl] of Object.entries(p.DEFAULT_PHRASES)) assert.equal(p.validateTemplate(name, tpl), null, name);
+  assert.equal(p.phraseTaskDone('Claude Code', 'na sessão X', 'cerca de 4 minutos', 'criar o compose.', p.DEFAULT_PHRASES),
+    'Claude Code terminou na sessão X, depois de cerca de 4 minutos. Você tinha pedido: criar o compose.');
+});
+
+test('templates: a custom sentence uses the variables', () => {
+  const t = { taskDone: '{agent} acabou {where}, levou {duration}.[ Pedido: {request}.]' };
+  assert.equal(p.phraseTaskDone('Codex', 'na sessão azul', 'cerca de 2 minutos', 'rodar os testes', t),
+    'Codex acabou na sessão azul, levou cerca de 2 minutos. Pedido: rodar os testes.');
+});
+
+test('templates: an optional [section] disappears when its variable is empty', () => {
+  const t = { taskDone: '{agent} acabou.[ Pedido: {request}.]' };
+  assert.equal(p.phraseTaskDone('Codex', 'x', 'y', '', t), 'Codex acabou.');
+  const b = { backgroundDone: '[{text} pronto ]{where}.' };
+  assert.equal(p.phraseBackgroundDone('Codex', 'na sessão X', 'revisor', b), 'revisor pronto na sessão X.');
+});
+
+test('templates: needsInput keeps the translated notice', () => {
+  const t = { needsInput: 'Ei, {agent} precisa de você {where}{notice}!' };
+  assert.equal(p.phraseNeedsInput('Claude Code', 'na sessão X', 'Claude needs your permission to use Bash', t),
+    'Ei, Claude Code precisa de você na sessão X, para usar o Bash!');
+});
+
+test('templates: a missing entry falls back to the default', () => {
+  assert.equal(p.phraseBackgroundDone('Claude Code', 'na sessão X', 'revisor', { taskDone: '{agent}' }),
+    'Claude Code terminou um trabalho em segundo plano na sessão X. Era: revisor.');
+});
+
+test('templates: validation rejects what would speak broken text', () => {
+  assert.match(p.validateTemplate('taskDone', '{agent} {texto}'), /unknown variable \{texto\}.*agent, where, duration, request/);
+  assert.match(p.validateTemplate('needsInput', '{agent} {request}'), /unknown variable \{request\}/);
+  assert.match(p.validateTemplate('taskDone', '{agent} [a [b]]'), /brackets/);
+  assert.match(p.validateTemplate('taskDone', '{agent} ]'), /brackets/);
+  assert.match(p.validateTemplate('taskDone', '   '), /empty/);
+  assert.match(p.validateTemplate('taskDone', 42), /empty/);
+  assert.match(p.validateTemplate('nope', '{agent}'), /unknown phrase "nope"/);
+  assert.match(p.validateTemplate('taskDone', `{agent}${'x'.repeat(300)}`), /too long/);
+});

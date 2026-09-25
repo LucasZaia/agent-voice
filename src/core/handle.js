@@ -64,7 +64,7 @@ export async function handle(event, ctx) {
         ctx.log(agent, session, `silent (turn ${elapsed}s < ${ctx.config.minSeconds}s)`);
         return;
       }
-      sentence = phraseTaskDone(who, place, durationPhrase(elapsed), clean(asked));
+      sentence = phraseTaskDone(who, place, durationPhrase(elapsed), clean(asked), ctx.config.phrases);
       break;
     }
 
@@ -78,11 +78,11 @@ export async function handle(event, ctx) {
         ctx.log(agent, session, 'silent (background_done with no content)');
         return;
       }
-      sentence = phraseBackgroundDone(who, place, clean(text));
+      sentence = phraseBackgroundDone(who, place, clean(text), ctx.config.phrases);
       break;
 
     case 'needs_input':
-      sentence = phraseNeedsInput(who, place, clean(text));
+      sentence = phraseNeedsInput(who, place, clean(text), ctx.config.phrases);
       break;
 
     default:

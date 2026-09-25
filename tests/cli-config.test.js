@@ -43,3 +43,29 @@ test('a corrupt config.json makes interactive commands exit 1 with the file name
   assert.equal(await main(['config', 'get'], { env: sb.env, out: c.out, err: c.out }), 1);
   assert.match(c.text(), /config\.json: invalid JSON/);
 });
+
+test('phrases: get shows the default, set validates and persists, reset goes back', () => {
+  const sb = sandbox();
+  const c = collector();
+  const io = { env: sb.env, out: c.out };
+  runConfig(['get', 'phrases.taskDone'], io);
+  assert.equal(c.lines.at(-1), '{agent} terminou {where}, depois de {duration}.[ Você tinha pedido: {request}.]');
+  runConfig(['set', 'phrases.taskDone', '{agent} acabou {where}.'], io);
+  runConfig(['get', 'phrases.taskDone'], io);
+  assert.equal(c.lines.at(-1), '{agent} acabou {where}.');
+  assert.throws(() => runConfig(['set', 'phrases.taskDone', '{agente} acabou'], io), /unknown variable \{agente\}/);
+  assert.throws(() => runConfig(['set', 'phrases.nope', '{agent}'], io), /unknown phrase "nope"/);
+  runConfig(['reset', 'phrases.taskDone'], io);
+  runConfig(['get', 'phrases.taskDone'], io);
+  assert.match(c.lines.at(-1), /^\{agent\} terminou/);
+});
+
+test('get with no key lists the phrases too; reset works for numbers', () => {
+  const sb = sandbox();
+  const c = collector();
+  runConfig(['set', 'minSeconds', '45'], { env: sb.env, out: c.out });
+  runConfig(['reset', 'minSeconds'], { env: sb.env, out: c.out });
+  runConfig(['get'], { env: sb.env, out: c.out });
+  assert.match(c.text(), /minSeconds=30/);
+  assert.match(c.text(), /phrases\.needsInput=\{agent\} precisa de você \{where\}\{notice\}\./);
+});
