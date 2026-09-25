@@ -8,7 +8,7 @@ import { main } from '../src/cli/main.js';
 test('help is printed with no command', async () => {
   const c = collector();
   assert.equal(await main([], { env: sandbox().env, out: c.out, err: c.out }), 0);
-  assert.match(c.text(), /agent-voice setup/);
+  assert.match(c.text(), /\n  setup\s/);
 });
 
 test('an unknown command exits 1 with a hint', async () => {

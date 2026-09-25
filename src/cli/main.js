@@ -3,7 +3,7 @@ import { createPrompter } from './prompt.js';
 
 const HELP = `Usage: agent-voice <command>
 
-  agent-voice setup                 guided setup: connect agents, add a speaker, test it
+  setup                             guided setup: connect agents, add a speaker, test it
   connect <claude-code|codex>       add agent-voice's hooks to the agent (asks first; --yes skips)
   disconnect <claude-code|codex>    remove agent-voice's hooks from the agent
   output add <alexa|local|command> [name]
