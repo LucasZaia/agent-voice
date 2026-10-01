@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as codex from '../src/adapters/codex.js';
 import { ADAPTERS } from '../src/adapters/index.js';
@@ -37,6 +39,38 @@ test('Stop gets a JSON reply; others get nothing', () => {
 test('config file follows CODEX_HOME', () => {
   assert.equal(codex.configFile({}, home), join(home, '.codex', 'hooks.json'));
   assert.equal(codex.configFile({ CODEX_HOME: join('/', 'c') }, home), join('/', 'c', 'hooks.json'));
+});
+
+test('session name prefers payload fields', () => {
+  assert.equal(codex.translate('start', { ...base, session_name: 'Repo real', thread_name: 'Repo antigo' }, home).session_name, 'Repo real');
+  assert.equal(codex.translate('start', { ...base, thread_name: 'Repo real' }, home).session_name, 'Repo real');
+});
+
+test('session name is read from Codex session_index.jsonl', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'av-codex-'));
+  const codexHome = join(dir, 'codex');
+  mkdirSync(codexHome, { recursive: true });
+  writeFileSync(join(codexHome, 'session_index.jsonl'), [
+    JSON.stringify({ id: 'thr-1', thread_name: 'Nome antigo', updated_at: '2026-09-27T10:00:00Z' }),
+    JSON.stringify({ id: 'other', thread_name: 'Outra sessão', updated_at: '2026-09-27T10:01:00Z' }),
+    JSON.stringify({ id: 'thr-1', thread_name: 'Nome atual', updated_at: '2026-09-27T10:02:00Z' }),
+    '',
+  ].join('\n'));
+  const env = { CODEX_HOME: codexHome };
+  assert.equal(codex.sessionIndexFile(env, home), join(codexHome, 'session_index.jsonl'));
+  assert.equal(codex.sessionName('thr-1', env, home), 'Nome atual');
+  assert.equal(codex.translate('start', base, home, env).session_name, 'Nome atual');
+});
+
+test('missing, corrupt or unrelated Codex session index leaves the name empty', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'av-codex-'));
+  const codexHome = join(dir, 'codex');
+  mkdirSync(codexHome, { recursive: true });
+  assert.equal(codex.sessionName('thr-1', { CODEX_HOME: codexHome }, home), '');
+  writeFileSync(join(codexHome, 'session_index.jsonl'), '{"id":"thr-1", broken\n{"id":"other","thread_name":"x"}\n');
+  assert.equal(codex.sessionName('thr-1', { CODEX_HOME: codexHome }, home), '');
+  assert.equal(codex.sessionName('missing', { CODEX_HOME: codexHome }, home), '');
+  assert.equal(codex.sessionName('', { CODEX_HOME: codexHome }, home), '');
 });
 
 test('hooks and the trust note', () => {

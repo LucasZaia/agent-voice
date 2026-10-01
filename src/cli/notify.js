@@ -48,7 +48,7 @@ export async function runNotify(args, { input = '', env = process.env, write = (
     if (reply) write(reply);
     let payload = {};
     try { payload = JSON.parse(input); } catch { /* garbage in: the core logs the incomplete event */ }
-    const event = adapter.translate(sub, payload);
+    const event = adapter.translate(sub, payload, undefined, env);
     if (!event) return 0;
     await handle(event, createContext(env));
   } catch (e) {
